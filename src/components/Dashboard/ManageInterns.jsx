@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { Search, Filter, Edit2, Check, X, Layers, Users, CheckSquare, Plus, Trash2, UserPlus, Settings, Link2 } from "lucide-react";
+import { Search, Filter, Edit2, Check, X, Layers, Users, CheckSquare, Plus, Trash2, UserPlus, Settings, Link2, Download, Upload, FileSpreadsheet, FileCode } from "lucide-react";
+import * as XLSX from "xlsx";
 import { translations } from "../../translations";
 import InternImage from "../InternImage";
 import { getGoogleSheetsUrl } from "../../mockData";
+
+const EXAMS_LIST = [
+  "كتاب مقدس",
+  "عقيده",
+  "تاريخ كنيسه",
+  "دفاعيات",
+  "لاهوت روحي",
+  "كورس كيف اخدم",
+  "طقس",
+  "ابائيات",
+  "نمو شخصيه",
+  "لاهوت مقارن",
+  "خلوة",
+  "مؤتمر",
+  "Summer project"
+];
 
 export default function ManageInterns({
   rotations,
@@ -51,10 +68,186 @@ export default function ManageInterns({
     setDbUrl(getGoogleSheetsUrl());
   }, []);
 
+  // Backup & Excel Sync states
+  const [showBackup, setShowBackup] = useState(false);
+
   const handleCopyLink = (type, url) => {
     navigator.clipboard.writeText(url);
     setCopiedLinkType(type);
     setTimeout(() => setCopiedLinkType(null), 2000);
+  };
+
+  const handleExportJson = () => {
+    const backupData = {
+      rotations: rotations,
+      evaluations: JSON.parse(localStorage.getItem("evaluations")) || [],
+      departments: {
+        main: mainDepartments,
+        secondary: secondaryDepartments
+      },
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `e3dad_servants_backup_${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJson = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backupData = JSON.parse(event.target.result);
+        if (!backupData.rotations || !backupData.departments) {
+          alert(isRtl ? "ملف النسخة الاحتياطية غير صالح!" : "Invalid backup file structure!");
+          return;
+        }
+
+        if (window.confirm(isRtl 
+          ? "تنبيه: سيؤدي استيراد النسخة الاحتياطية إلى استبدال قاعدة البيانات الحالية بالكامل (الطلاب، والتقييمات، والدرجات). هل تريد الاستمرار؟" 
+          : "Warning: Importing this backup will overwrite the current database completely (students, evaluations, and grades). Do you want to continue?")) {
+          
+          localStorage.setItem("rotations", JSON.stringify(backupData.rotations));
+          localStorage.setItem("evaluations", JSON.stringify(backupData.evaluations || []));
+          localStorage.setItem("departments", JSON.stringify(backupData.departments));
+          
+          alert(isRtl ? "تم استيراد قاعدة البيانات بنجاح! سيتم إعادة تحميل الصفحة الآن." : "Database imported successfully! Reloading page...");
+          window.location.reload();
+        }
+      } catch (err) {
+        alert(isRtl ? "فشل قراءة الملف! تأكد من صحة الملف." : "Failed to read file! Make sure it is valid JSON.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExportExcel = () => {
+    const rotationsSheetData = rotations.map((r) => {
+      const row = {
+        "Intern Name": r.intern_name,
+        "Main Department": r.main_department || "",
+        "Secondary Department": r.secondary_department || "",
+        "Intern Photo ID": r.drive_photo_id || ""
+      };
+      
+      EXAMS_LIST.forEach((exam) => {
+        row[exam] = r.exams && r.exams[exam] !== undefined ? r.exams[exam] : "";
+      });
+      
+      return row;
+    });
+
+    const maxLen = Math.max(mainDepartments.length, secondaryDepartments.length);
+    const deptsSheetData = [];
+    for (let i = 0; i < maxLen; i++) {
+      deptsSheetData.push({
+        "Main Departments": mainDepartments[i] || "",
+        "Secondary Departments": secondaryDepartments[i] || ""
+      });
+    }
+
+    const wb = XLSX.utils.book_new();
+    const wsRotations = XLSX.utils.json_to_sheet(rotationsSheetData);
+    const wsDepts = XLSX.utils.json_to_sheet(deptsSheetData);
+
+    XLSX.utils.book_append_sheet(wb, wsRotations, "Department_Rotations");
+    XLSX.utils.book_append_sheet(wb, wsDepts, "Departments");
+
+    XLSX.writeFile(wb, `e3dad_servants_database_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  const handleImportExcel = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const sheetName = workbook.SheetNames.find(n => n.toLowerCase() === "department_rotations" || n.toLowerCase() === "rotations");
+        if (!sheetName) {
+          alert(isRtl ? "لم يتم العثور على ورقة العمل 'Department_Rotations' في ملف Excel!" : "Could not find 'Department_Rotations' sheet in Excel file!");
+          return;
+        }
+        const wsRotations = workbook.Sheets[sheetName];
+        const parsedRows = XLSX.utils.sheet_to_json(wsRotations);
+
+        const newRotations = parsedRows.map((row) => {
+          const nameKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "internname" || k.toLowerCase().replace(/[\s_-]/g, "") === "name");
+          const name = nameKey ? row[nameKey] : "";
+          if (!name) return null;
+
+          const mainKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "maindepartment" || k.toLowerCase().replace(/[\s_-]/g, "") === "department");
+          const secKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "secondarydepartment");
+          const photoKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "internphotoid" || k.toLowerCase().replace(/[\s_-]/g, "") === "drivephotoid");
+
+          const exams = {};
+          EXAMS_LIST.forEach((exam) => {
+            const examVal = row[exam];
+            if (examVal !== undefined && examVal !== null && examVal !== "") {
+              const numVal = Number(examVal);
+              if (!isNaN(numVal)) {
+                exams[exam] = numVal;
+              }
+            }
+          });
+
+          return {
+            intern_name: String(name).trim(),
+            main_department: mainKey ? String(row[mainKey]).trim() : "",
+            secondary_department: secKey ? String(row[secKey]).trim() : "",
+            drive_photo_id: photoKey ? String(row[photoKey]).trim() : "",
+            exams: exams
+          };
+        }).filter(Boolean);
+
+        if (newRotations.length === 0) {
+          alert(isRtl ? "لم يتم العثور على أي بيانات طلاب صالحة!" : "No valid student records found in sheet!");
+          return;
+        }
+
+        const deptsSheetName = workbook.SheetNames.find(n => n.toLowerCase() === "departments");
+        let newMainDepts = mainDepartments;
+        let newSecDepts = secondaryDepartments;
+        if (deptsSheetName) {
+          const wsDepts = workbook.Sheets[deptsSheetName];
+          const parsedDepts = XLSX.utils.sheet_to_json(wsDepts);
+          const tempMain = [];
+          const tempSec = [];
+          parsedDepts.forEach((row) => {
+            const mainValKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "maindepartments");
+            const secValKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "secondarydepartments");
+            if (mainValKey && row[mainValKey]) tempMain.push(String(row[mainValKey]).trim());
+            if (secValKey && row[secValKey]) tempSec.push(String(row[secValKey]).trim());
+          });
+          if (tempMain.length > 0) newMainDepts = tempMain;
+          if (tempSec.length > 0) newSecDepts = tempSec;
+        }
+
+        if (window.confirm(isRtl
+          ? `تم قراءة عدد (${newRotations.length}) طالب بنجاح. هل تريد استبدال قاعدة البيانات الحالية بهذه البيانات؟`
+          : `Successfully read (${newRotations.length}) students. Overwrite current database with this data?`)) {
+          
+          localStorage.setItem("rotations", JSON.stringify(newRotations));
+          localStorage.setItem("departments", JSON.stringify({ main: newMainDepts, secondary: newSecDepts }));
+          
+          alert(isRtl ? "تم استيراد الملف بنجاح! سيتم إعادة تحميل الصفحة." : "Imported successfully! Reloading page...");
+          window.location.reload();
+        }
+      } catch (err) {
+        alert(isRtl ? "فشل استيراد ملف Excel! تأكد من توافق الأعمدة." : "Failed to import Excel file! Check column names and structure.");
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   // Add Intern state
@@ -277,6 +470,7 @@ export default function ManageInterns({
               setShowDeptManager(false);
               setShowAddForm(false);
               setShowDbConfig(false);
+              setShowBackup(false);
             }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               showLinks
@@ -295,6 +489,7 @@ export default function ManageInterns({
               setShowLinks(false);
               setShowAddForm(false);
               setShowDbConfig(false);
+              setShowBackup(false);
             }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               showDeptManager
@@ -313,6 +508,7 @@ export default function ManageInterns({
               setShowLinks(false);
               setShowDeptManager(false);
               setShowAddForm(false);
+              setShowBackup(false);
             }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               showDbConfig
@@ -323,6 +519,25 @@ export default function ManageInterns({
             <Settings className="w-4 h-4 text-slate-500" />
             <span>{isRtl ? "إعدادات الربط" : "Sheets Sync"}</span>
           </button>
+
+          {/* Backup & Excel Sync button */}
+          <button
+            onClick={() => {
+              setShowBackup(!showBackup);
+              setShowLinks(false);
+              setShowDeptManager(false);
+              setShowAddForm(false);
+              setShowDbConfig(false);
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showBackup
+                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span>{isRtl ? "استيراد وتصدير" : "Import & Export"}</span>
+          </button>
           
           {/* Add Intern button */}
           <button
@@ -331,6 +546,7 @@ export default function ManageInterns({
               setShowLinks(false);
               setShowDeptManager(false);
               setShowDbConfig(false);
+              setShowBackup(false);
               if (showAddForm) {
                 setNewInternName("");
                 setNewInternMainDept("");
@@ -451,6 +667,100 @@ export default function ManageInterns({
           </div>
         );
       })()}
+
+      {/* Backup & Excel Sync Card */}
+      {showBackup && (
+        <div className="bg-gradient-to-br from-indigo-50/30 to-slate-50 border border-indigo-100 rounded-3xl p-6 shadow-sm animate-scale-up" dir={isRtl ? "rtl" : "ltr"}>
+          <div className="flex items-center justify-between border-b border-indigo-100 pb-3 mb-4">
+            <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5 font-arabic">
+              <Download className="w-5 h-5 text-indigo-600" />
+              <span>{isRtl ? "استيراد وتصدير البيانات (Backup & Excel)" : "Database Import / Export Panel"}</span>
+            </h3>
+            <button
+              onClick={() => setShowBackup(false)}
+              className="text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-arabic text-xs md:text-sm">
+            {/* Section A: Excel Integration */}
+            <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="space-y-1">
+                <span className="text-[10px] text-teal-600 font-bold uppercase tracking-wider block">
+                  {isRtl ? "تكامل مع ملفات Excel" : "Excel Sheet Integration"}
+                </span>
+                <h4 className="text-sm font-bold text-slate-800">
+                  {isRtl ? "إدارة وتحديث درجات الطلاب عبر Excel" : "Manage & Update Grades via Excel"}
+                </h4>
+                <p className="text-[11px] text-slate-400 font-light leading-relaxed">
+                  {isRtl 
+                    ? "قم بتنزيل كشف الطلاب الحاليين ودرجاتهم وتعديلها بسهولة في Excel ثم أعد رفع الملف ليتم تحديث الطلاب ودرجات الامتحانات الـ 13 الخاصة بهم تلقائياً." 
+                    : "Download the roster with the 13 exams, edit them in Excel, and upload the spreadsheet back to update all grades."}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  onClick={handleExportExcel}
+                  className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{isRtl ? "تصدير إلى Excel" : "Export to Excel"}</span>
+                </button>
+                <label className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:border-slate-350 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center">
+                  <Upload className="w-4 h-4 text-slate-500" />
+                  <span>{isRtl ? "استيراد من Excel" : "Import Excel"}</span>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleImportExcel}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Section B: JSON Backup & Restore */}
+            <div className="bg-white border border-slate-200/60 p-5 rounded-2xl flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="space-y-1">
+                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider block">
+                  {isRtl ? "نسخة احتياطية كاملة" : "Full Database Backup"}
+                </span>
+                <h4 className="text-sm font-bold text-slate-800">
+                  {isRtl ? "حفظ واسترجاع نسخة النظام بالكامل" : "JSON Backup & Restore"}
+                </h4>
+                <p className="text-[11px] text-slate-400 font-light leading-relaxed">
+                  {isRtl 
+                    ? "احفظ نسخة احتياطية كاملة تحتوي على قائمة الطلاب بالكامل، وجميع سجلات الحضور وتقييمات الفترات، ودرجات الامتحانات، لاسترجاعها على جهاز آخر أو بعد حذف ملفات الكوكيز." 
+                    : "Create a complete backup of all students, history logs, photos, and grades to restore on another device or after cookie clearing."}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  onClick={handleExportJson}
+                  className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileCode className="w-4 h-4" />
+                  <span>{isRtl ? "تصدير نسخة احتياطية" : "Backup Database"}</span>
+                </button>
+                <label className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:border-slate-350 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center">
+                  <Upload className="w-4 h-4 text-slate-500" />
+                  <span>{isRtl ? "استيراد نسخة احتياطية" : "Restore Backup"}</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportJson}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Access Links Card */}
       {showLinks && (() => {
