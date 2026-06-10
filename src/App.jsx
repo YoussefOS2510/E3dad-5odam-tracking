@@ -9,6 +9,8 @@ import ProfileModal from "./components/Dashboard/ProfileModal";
 import ManageInterns from "./components/Dashboard/ManageInterns";
 
 import { fetchData, submitEvaluations, saveRotationsApi, saveDepartmentsApi, saveLocalDepartments } from "./api";
+import { isFirebaseConfigured } from "./firebase";
+import { saveFirestoreEvaluations } from "./mockData";
 import { translations } from "./translations";
 
 const FALLBACK_MAIN_DEPTS = [
@@ -44,7 +46,7 @@ export default function App() {
   // Data State
   const [rotations, setRotations] = useState([]);
   const [evaluations, setEvaluations] = useState([]);
-  const [apiSource, setApiSource] = useState("mock"); // "mock" | "sheets" | "fallback"
+  const [apiSource, setApiSource] = useState("local"); // "local" | "firestore" | "fallback"
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("");
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -86,7 +88,7 @@ export default function App() {
     setSyncStatus(t.loadingData);
     const res = await fetchData();
     
-    let fetchedRotations = res.rotations || [];
+    const fetchedRotations = res.rotations || [];
     
     if (res.departments && res.departments.main && res.departments.secondary) {
       const main = res.departments.main.filter(Boolean);
@@ -98,53 +100,18 @@ export default function App() {
       setSecondaryDepartments(FALLBACK_SEC_DEPTS);
     }
     
-    // Merge locally modified rotations from localStorage to preserve edits
-    const localModifications = localStorage.getItem("rotations");
-    if (localModifications) {
-      try {
-        const localMods = JSON.parse(localModifications);
-        const mergedMap = {};
-        
-        // Seed with fetched rotations
-        fetchedRotations.forEach((r) => {
-          if (r.intern_name) mergedMap[r.intern_name] = r;
-        });
-
-        // Merge local modifications, overwriting matching fields and retaining new records
-        localMods.forEach((m) => {
-          if (m.intern_name) {
-            if (mergedMap[m.intern_name]) {
-              mergedMap[m.intern_name] = {
-                ...mergedMap[m.intern_name],
-                main_department: m.main_department,
-                secondary_department: m.secondary_department,
-                drive_photo_id: m.drive_photo_id || mergedMap[m.intern_name].drive_photo_id,
-                exams: m.exams || mergedMap[m.intern_name].exams || {}
-              };
-            } else {
-              mergedMap[m.intern_name] = m;
-            }
-          }
-        });
-
-        fetchedRotations = Object.values(mergedMap);
-      } catch (e) {
-        console.error("Failed to merge local rotation modifications:", e);
-      }
-    }
-    
     setRotations(fetchedRotations);
     setEvaluations(res.evaluations || []);
     setApiSource(res.source);
     setLoading(false);
     
     const isAr = lang === "ar";
-    if (res.source === "sheets") {
-      setSyncStatus(isAr ? "متصل بسحابة Google Sheets" : "Connected to Google Sheets Cloud");
+    if (res.source === "firestore") {
+      setSyncStatus(isAr ? "✓ متصل بقاعدة البيانات السحابية" : "✓ Connected to Cloud Database");
     } else if (res.source === "fallback") {
-      setSyncStatus(isAr ? `محيطي: فشل الاتصال` : `Offline: Connection Failed`);
+      setSyncStatus(isAr ? "تحذير: فشل الاتصال، وضع محلي" : "Warning: Connection failed, offline mode");
     } else {
-      setSyncStatus(isAr ? "يعمل بالوضع التجريبي المحلي" : "Running in local demo mode");
+      setSyncStatus(isAr ? "وضع محلي — أضف Firebase للمزامنة السحابية" : "Local mode — add Firebase for cloud sync");
     }
   };
 
@@ -465,11 +432,15 @@ export default function App() {
     if (!window.confirm(isAr ? "هل أنت متأكد من حذف هذا التقييم نهائياً؟" : "Are you sure you want to delete this evaluation permanently?")) {
       return false;
     }
-    const current = JSON.parse(localStorage.getItem("evaluations")) || [];
-    const updated = current.filter(
+    const updated = evaluations.filter(
       (ev) => !(ev.timestamp === timestamp && ev.intern_name === name)
     );
+    // Save to localStorage cache
     localStorage.setItem("evaluations", JSON.stringify(updated));
+    // Save to Firestore (cloud)
+    if (isFirebaseConfigured) {
+      await saveFirestoreEvaluations(updated);
+    }
     setEvaluations(updated);
     return true;
   };

@@ -1,41 +1,47 @@
+import { isFirebaseConfigured } from "./firebase";
 import {
   getLocalRotations,
   getLocalEvaluations,
+  getLocalDepartments,
   saveLocalEvaluationBatch,
+  saveLocalRotations,
+  saveLocalDepartments,
+  getFirestoreRotations,
+  getFirestoreEvaluations,
+  getFirestoreDepartments,
+  saveFirestoreRotations,
+  saveFirestoreEvaluations,
+  appendFirestoreEvaluations,
+  saveFirestoreDepartments,
+  migrateLocalToFirestore,
   getGoogleSheetsUrl,
   setGoogleSheetsUrl,
-  getLocalDepartments,
-  saveLocalDepartments
 } from "./mockData";
 
 export { getGoogleSheetsUrl, setGoogleSheetsUrl, saveLocalDepartments };
 
 /**
- * Normalizes rotation data from different possible sheet header representations.
+ * Normalizes rotation data from different possible data source formats.
  */
 const normalizeRotation = (r) => {
   if (!r) return null;
   const normalized = {};
 
-  // Normalize intern_name
   const nameKey = Object.keys(r).find(
     (k) => k.toLowerCase().replace(/[\s_-]/g, "") === "internname"
   );
   normalized.intern_name = nameKey ? r[nameKey] : (r.intern_name || r.name || "");
 
-  // Normalize main_department
   const mainKey = Object.keys(r).find(
     (k) => k.toLowerCase().replace(/[\s_-]/g, "") === "maindepartment"
   );
   normalized.main_department = mainKey ? r[mainKey] : (r.main_department || r.department || "");
 
-  // Normalize secondary_department
   const secKey = Object.keys(r).find(
     (k) => k.toLowerCase().replace(/[\s_-]/g, "") === "secondarydepartment"
   );
   normalized.secondary_department = secKey ? r[secKey] : (r.secondary_department || "");
 
-  // Normalize drive_photo_id
   const photoKey = Object.keys(r).find(
     (k) =>
       k.toLowerCase().replace(/[\s_-]/g, "") === "internphotoid" ||
@@ -43,7 +49,6 @@ const normalizeRotation = (r) => {
   );
   normalized.drive_photo_id = photoKey ? r[photoKey] : (r.drive_photo_id || "");
 
-  // Normalize exams
   const examsKey = Object.keys(r).find(
     (k) => k.toLowerCase().replace(/[\s_-]/g, "") === "exams"
   );
@@ -62,7 +67,6 @@ const normalizeRotation = (r) => {
     normalized.exams = {};
   }
 
-  // Trim string values
   if (typeof normalized.intern_name === "string") normalized.intern_name = normalized.intern_name.trim();
   if (typeof normalized.main_department === "string") normalized.main_department = normalized.main_department.trim();
   if (typeof normalized.secondary_department === "string") normalized.secondary_department = normalized.secondary_department.trim();
@@ -72,244 +76,166 @@ const normalizeRotation = (r) => {
 };
 
 /**
- * Fetch rotations and evaluation logs.
- * Falls back to local storage if API is not set or fails.
+ * Wraps a promise with a timeout. If the promise takes longer than ms, resolves with null.
+ */
+const withTimeout = (promise, ms = 8000) => {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+};
+
+/**
+ * Fetch rotations, evaluations, and departments.
+ * Priority: Firestore → localStorage (fallback when Firebase not configured or fails)
  */
 export const fetchData = async () => {
-  const url = getGoogleSheetsUrl();
-  if (!url) {
-    return {
-      rotations: getLocalRotations().map(normalizeRotation).filter(Boolean),
-      evaluations: getLocalEvaluations(),
-      departments: getLocalDepartments(),
-      source: "mock"
-    };
+  if (isFirebaseConfigured) {
+    try {
+      // Seed Firestore from local data if it's empty (first-time setup)
+      await withTimeout(migrateLocalToFirestore(), 10000);
+
+      // Fetch all three collections with a timeout so the app never hangs
+      const [firestoreRotations, firestoreEvaluations, firestoreDepartments] =
+        await Promise.all([
+          withTimeout(getFirestoreRotations()),
+          withTimeout(getFirestoreEvaluations()),
+          withTimeout(getFirestoreDepartments()),
+        ]);
+
+      if (firestoreRotations !== null) {
+        // Update local cache
+        saveLocalRotations(firestoreRotations);
+
+        return {
+          rotations: firestoreRotations.map(normalizeRotation).filter(Boolean),
+          evaluations: firestoreEvaluations || [],
+          departments: firestoreDepartments || getLocalDepartments(),
+          source: "firestore",
+        };
+      }
+
+      // Firestore returned null — could mean DB doesn't exist yet or timed out
+      console.warn("Firestore returned no data, falling back to local storage.");
+    } catch (err) {
+      console.error("Firestore fetchData error, falling back to local:", err);
+    }
   }
 
-  try {
-    const res = await fetch(`${url}?action=getData`);
-    if (!res.ok) {
-      throw new Error(`Server returned status ${res.status}`);
-    }
-    const json = await res.json();
-    if (json.error) {
-      throw new Error(json.error);
-    }
-    return {
-      rotations: (json.rotations || []).map(normalizeRotation).filter(Boolean),
-      evaluations: json.evaluations || [],
-      departments: json.departments || getLocalDepartments(),
-      source: "sheets"
-    };
-  } catch (err) {
-    console.error("API error, falling back to local data:", err);
-    return {
-      rotations: getLocalRotations().map(normalizeRotation).filter(Boolean),
-      evaluations: getLocalEvaluations(),
-      departments: getLocalDepartments(),
-      source: "fallback",
-      error: err.message
-    };
-  }
+  // Fallback: localStorage (offline or unconfigured)
+  return {
+    rotations: getLocalRotations().map(normalizeRotation).filter(Boolean),
+    evaluations: getLocalEvaluations(),
+    departments: getLocalDepartments(),
+    source: "local",
+  };
 };
 
 /**
- * Submit batch evaluations.
- * Appends data locally and posts to Google Sheets if configured.
+ * Submit a batch of new evaluations.
+ * Saves to Firestore (cloud) and localStorage (cache).
  */
 export const submitEvaluations = async (evaluations) => {
-  const url = getGoogleSheetsUrl();
-  
-  // We ALWAYS save locally first to ensure immediate responsiveness and offline resilience.
+  // Always save locally first
   saveLocalEvaluationBatch(evaluations);
 
-  if (!url) {
-    return {
-      success: true,
-      count: evaluations.length,
-      source: "mock"
-    };
-  }
-
-  try {
-    // Send as text/plain to avoid preflight OPTIONS requests,
-    // which Google Apps Script web apps do not handle well.
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({
-        action: "submitEvaluations",
-        data: evaluations
-      })
-    });
-    
-    // Since Google Apps Script Web App redirects are sometimes blocked by CORS depending on browser,
-    // if we don't get an error, we treat it as success. If it fails, we fall back.
-    if (!res.ok && res.status !== 0) {
-      throw new Error(`HTTP error ${res.status}`);
+  if (isFirebaseConfigured) {
+    try {
+      await appendFirestoreEvaluations(evaluations);
+      return { success: true, count: evaluations.length, source: "firestore" };
+    } catch (err) {
+      console.error("Firestore submitEvaluations error:", err);
+      return { success: true, count: evaluations.length, source: "local", error: err.message };
     }
-
-    return {
-      success: true,
-      count: evaluations.length,
-      source: "sheets"
-    };
-  } catch (err) {
-    console.error("API POST error, saved locally as fallback:", err);
-    return {
-      success: true,
-      count: evaluations.length,
-      source: "fallback",
-      error: err.message
-    };
   }
+
+  return { success: true, count: evaluations.length, source: "local" };
 };
 
 /**
- * Push rotation updates to Google Sheets.
- */
-export const updateRotations = async (updates) => {
-  const url = getGoogleSheetsUrl();
-  if (!url) {
-    return {
-      success: true,
-      source: "mock"
-    };
-  }
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({
-        action: "updateRotations",
-        data: updates
-      })
-    });
-
-    if (!res.ok && res.status !== 0) {
-      throw new Error(`HTTP error ${res.status}`);
-    }
-
-    return {
-      success: true,
-      source: "sheets"
-    };
-  } catch (err) {
-    console.error("API POST error updating rotations:", err);
-    return {
-      success: false,
-      source: "fallback",
-      error: err.message
-    };
-  }
-};
-
-/**
- * Save the entire rotations list to Google Sheets.
+ * Save the entire rotations list (with exam grades) to Firestore.
  */
 export const saveRotationsApi = async (rotationsList) => {
-  const url = getGoogleSheetsUrl();
-  if (!url) {
-    return {
-      success: true,
-      source: "mock"
-    };
-  }
+  saveLocalRotations(rotationsList);
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({
-        action: "saveRotations",
-        data: rotationsList
-      })
-    });
-
-    if (!res.ok && res.status !== 0) {
-      throw new Error(`HTTP error ${res.status}`);
+  if (isFirebaseConfigured) {
+    try {
+      await saveFirestoreRotations(rotationsList);
+      return { success: true, source: "firestore" };
+    } catch (err) {
+      console.error("Firestore saveRotations error:", err);
+      return { success: false, source: "local", error: err.message };
     }
-
-    return {
-      success: true,
-      source: "sheets"
-    };
-  } catch (err) {
-    console.error("API POST error saving rotations:", err);
-    return {
-      success: false,
-      source: "fallback",
-      error: err.message
-    };
   }
+
+  return { success: true, source: "local" };
 };
 
 /**
- * Save the departments list to Google Sheets.
+ * Push selective rotation updates (partial update by intern name).
+ */
+export const updateRotations = async (updates) => {
+  if (!updates || updates.length === 0) return { success: true, source: "noop" };
+
+  // Get current list, apply updates, save back
+  const currentRotations = getLocalRotations();
+  const updatedMap = {};
+  for (const u of updates) {
+    updatedMap[u.intern_name] = u;
+  }
+
+  const merged = currentRotations.map((r) =>
+    updatedMap[r.intern_name] ? { ...r, ...updatedMap[r.intern_name] } : r
+  );
+
+  return saveRotationsApi(merged);
+};
+
+/**
+ * Save the departments list.
  */
 export const saveDepartmentsApi = async (main, secondary) => {
-  const url = getGoogleSheetsUrl();
-  if (!url) {
-    return {
-      success: true,
-      source: "mock"
-    };
-  }
+  saveLocalDepartments(main, secondary);
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({
-        action: "saveDepartments",
-        main: main,
-        secondary: secondary
-      })
-    });
-
-    if (!res.ok && res.status !== 0) {
-      throw new Error(`HTTP error ${res.status}`);
+  if (isFirebaseConfigured) {
+    try {
+      await saveFirestoreDepartments(main, secondary);
+      return { success: true, source: "firestore" };
+    } catch (err) {
+      console.error("Firestore saveDepartments error:", err);
+      return { success: false, source: "local", error: err.message };
     }
-
-    return {
-      success: true,
-      source: "sheets"
-    };
-  } catch (err) {
-    console.error("API POST error saving departments:", err);
-    return {
-      success: false,
-      source: "fallback",
-      error: err.message
-    };
   }
+
+  return { success: true, source: "local" };
 };
 
 /**
- * Validate a connection to the Google Sheets API.
+ * Validate API connection (Firestore or legacy Google Sheets).
  */
 export const testApiConnection = async (testUrl) => {
-  if (!testUrl) return { success: false, error: "URL is empty" };
-  
+  if (isFirebaseConfigured) {
+    try {
+      const rotations = await getFirestoreRotations();
+      if (rotations !== null) {
+        return { success: true, source: "firestore", count: rotations.length };
+      }
+      return { success: true, source: "firestore", count: 0, message: "Connected (empty database)" };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Legacy Google Sheets test
+  if (!testUrl) return { success: false, error: "No URL and Firebase not configured" };
   try {
     const res = await fetch(`${testUrl}?action=getData`);
-    if (!res.ok) {
-      throw new Error(`HTTP error ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const json = await res.json();
     if (json.rotations && json.evaluations) {
       return { success: true, data: json };
     }
-    throw new Error("Invalid response format. Expected 'rotations' and 'evaluations' arrays.");
+    throw new Error("Invalid response format.");
   } catch (err) {
     return { success: false, error: err.message };
   }
