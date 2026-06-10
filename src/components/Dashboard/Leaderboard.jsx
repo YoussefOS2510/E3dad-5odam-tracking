@@ -2,7 +2,7 @@ import React from "react";
 import { LineChart } from "lucide-react";
 import InternImage from "../InternImage";
 
-export default function Leaderboard({ evaluations, allRotations, onSelectIntern, lang }) {
+export default function Leaderboard({ evaluations, allRotations, onSelectIntern, searchQuery = "", selectedDept = "", lang }) {
   const isRtl = lang === "ar";
 
   // 1. Initialize intern data structure
@@ -37,6 +37,13 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
     a.name.localeCompare(b.name, lang)
   );
 
+  // Filter interns by search query and selected department
+  const filteredData = sortedData.filter((intern) => {
+    const matchesSearch = !searchQuery || intern.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept = !selectedDept || intern.mainDept === selectedDept || intern.secDept === selectedDept;
+    return matchesSearch && matchesDept;
+  });
+
   return (
     <div className={`space-y-6 ${isRtl ? "text-right" : "text-left"}`} dir={isRtl ? "rtl" : "ltr"}>
       {/* Title block */}
@@ -52,8 +59,15 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
       </div>
 
       {/* Grid of Intern Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {sortedData.map((intern) => {
+      {filteredData.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 font-arabic bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm">
+          <p className="font-bold text-slate-500">
+            {isRtl ? "لم يتم العثور على طلاب يطابقون خيارات البحث." : "No prep-servants found matching filters."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredData.map((intern) => {
           return (
             <div
               key={intern.name}
@@ -133,6 +147,7 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
           );
         })}
       </div>
+      )}
     </div>
   );
 }

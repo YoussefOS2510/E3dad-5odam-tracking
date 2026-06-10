@@ -668,6 +668,8 @@ export default function App() {
             evaluations={filteredEvaluations}
             allRotations={rotations}
             onSelectIntern={setSelectedProfileIntern}
+            searchQuery={searchQuery}
+            selectedDept={selectedDept}
             lang={lang}
           />
 
