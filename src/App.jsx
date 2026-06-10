@@ -303,7 +303,7 @@ export default function App() {
     const headers = [
       "Timestamp / التاريخ",
       "Evaluator Name / اسم المقيّم",
-      "Department / القسم",
+      "Department / الخدمة",
       "Intern Name / اسم الطالب",
       "Attendance Days / الحضور",
       "Punctuality (1-5) / الالتزام بالوقت",

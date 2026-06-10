@@ -114,7 +114,7 @@ export default function ConfigPanel({ onApiUrlChange, onDataReset, lang }) {
               </span>
               <span className="text-[10px] text-slate-400 block font-light leading-relaxed">
                 {isRtl 
-                  ? "شارك هذا الرابط مع أمناء الأقسام والخادم المقيّم. لا يمكنهم من خلاله رؤية البيانات أو لوحة التحكم."
+                  ? "شارك هذا الرابط مع أمناء الخدمات والخادم المقيّم. لا يمكنهم من خلاله رؤية البيانات أو لوحة التحكم."
                   : "Share this link with department heads/evaluators. They cannot see analytics or manage data."}
               </span>
             </div>

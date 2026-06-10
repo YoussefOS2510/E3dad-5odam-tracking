@@ -346,7 +346,7 @@ export default function ManageInterns({
     const name = newMainDeptName.trim();
     if (!name) return;
     if (mainDepartments.includes(name)) {
-      alert(isRtl ? "هذا القسم موجود بالفعل!" : "This department already exists!");
+      alert(isRtl ? "هذا الخدمة موجود بالفعل!" : "This department already exists!");
       return;
     }
     const updatedMain = [...mainDepartments, name];
@@ -358,13 +358,13 @@ export default function ManageInterns({
     const activeCount = rotations.filter((r) => r.main_department === name).length;
     if (activeCount > 0) {
       const msg = isRtl
-        ? `عذراً، لا يمكن حذف القسم "${name}" لوجود عدد (${activeCount}) طالب مسجلين به حالياً. قم بنقل الطلاب أولاً.`
+        ? `عذراً، لا يمكن حذف الخدمة "${name}" لوجود عدد (${activeCount}) طالب مسجلين به حالياً. قم بنقل الطلاب أولاً.`
         : `Cannot delete department "${name}" because there are (${activeCount}) interns assigned to it. Reassign them first.`;
       alert(msg);
       return;
     }
     const confirmMsg = isRtl
-      ? `هل أنت متأكد من حذف قسم "${name}"؟`
+      ? `هل أنت متأكد من حذف خدمة "${name}"؟`
       : `Are you sure you want to delete department "${name}"?`;
     if (window.confirm(confirmMsg)) {
       const updatedMain = mainDepartments.filter((d) => d !== name);
@@ -411,7 +411,7 @@ export default function ManageInterns({
       return;
     }
     if (!newInternMainDept) {
-      alert(isRtl ? "الرجاء اختيار قسم الخدمة الأساسي!" : "Please select a primary department!");
+      alert(isRtl ? "الرجاء اختيار خدمة الخدمة الأساسي!" : "Please select a primary department!");
       return;
     }
 
@@ -448,7 +448,7 @@ export default function ManageInterns({
           </h2>
           <p className="text-slate-400 text-xs mt-0.5 font-light">
             {isRtl 
-              ? "لوحة التحكم الكاملة لإضافة الطلاب وتعديلهم والتحكم في هيكل أقسام الخدمة" 
+              ? "لوحة التحكم الكاملة لإضافة الطلاب وتعديلهم والتحكم في هيكل خدمات الخدمة" 
               : "Full admin panel to manage prep-servant interns and service departments structure"}
           </p>
         </div>
@@ -488,7 +488,7 @@ export default function ManageInterns({
             }`}
           >
             <Layers className="w-4 h-4 text-slate-500" />
-            <span>{isRtl ? "إدارة الأقسام" : "Manage Departments"}</span>
+            <span>{isRtl ? "إدارة الخدمات" : "Manage Departments"}</span>
           </button>
 
 
@@ -556,7 +556,7 @@ export default function ManageInterns({
                     {isRtl ? "استمارة التقييم فقط" : "Evaluation Form Only"}
                   </span>
                   <h4 className="text-xs font-bold text-slate-800">
-                    {isRtl ? "رابط المقيمين ورؤساء الأقسام" : "Evaluators & Dept Heads"}
+                    {isRtl ? "رابط المقيمين ورؤساء الخدمات" : "Evaluators & Dept Heads"}
                   </h4>
                   <p className="text-[10px] text-slate-400 font-light leading-relaxed">
                     {isRtl 
@@ -634,7 +634,7 @@ export default function ManageInterns({
                   </h4>
                   <p className="text-[10px] text-slate-400 font-light leading-relaxed">
                     {isRtl 
-                      ? "كامل الصلاحيات لرصد الدرجات، وحذف التقييمات، وتعديل الطلاب والأقسام." 
+                      ? "كامل الصلاحيات لرصد الدرجات، وحذف التقييمات، وتعديل الطلاب والخدمات." 
                       : "Full read-write access to alter grades, delete logs, and edit database."}
                   </p>
                 </div>
@@ -670,7 +670,7 @@ export default function ManageInterns({
           <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
             <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5 font-arabic">
               <Settings className="w-5 h-5 text-indigo-500" />
-              <span>{isRtl ? "إدارة الأقسام المتاحة" : "Available Service Departments Structure"}</span>
+              <span>{isRtl ? "إدارة الخدمات المتاحة" : "Available Service Departments Structure"}</span>
             </h3>
             <button
               onClick={() => setShowDeptManager(false)}
@@ -684,14 +684,14 @@ export default function ManageInterns({
             {/* Primary Departments Column */}
             <div className="space-y-3">
               <span className="text-xs font-bold text-slate-700 block font-arabic border-b border-slate-200/50 pb-1">
-                {isRtl ? "أقسام الخدمة الأساسية (Rotations)" : "Primary Departments"}
+                {isRtl ? "خدمات الخدمة الأساسية (Rotations)" : "Primary Departments"}
               </span>
               
               {/* Add main dept */}
               <form onSubmit={handleAddMainDept} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder={isRtl ? "اسم القسم الأساسي..." : "Primary department name..."}
+                  placeholder={isRtl ? "اسم الخدمة الأساسي..." : "Primary department name..."}
                   value={newMainDeptName}
                   onChange={(e) => setNewMainDeptName(e.target.value)}
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-arabic"
@@ -861,16 +861,16 @@ export default function ManageInterns({
             <div className="space-y-1">
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-bold text-slate-600 font-arabic">
-                  {isRtl ? "قسم الخدمة الأساسي (Main Rotation)" : "Primary Department"} <span className="text-rose-500">*</span>
+                  {isRtl ? "خدمة الخدمة الأساسي (Main Rotation)" : "Primary Department"} <span className="text-rose-500">*</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => {
-                    const name = prompt(isRtl ? "أدخل اسم القسم الأساسي الجديد:" : "Enter new primary department name:");
+                    const name = prompt(isRtl ? "أدخل اسم الخدمة الأساسي الجديد:" : "Enter new primary department name:");
                     if (name && name.trim()) {
                       const trimmed = name.trim();
                       if (mainDepartments.includes(trimmed)) {
-                        alert(isRtl ? "هذا القسم موجود بالفعل!" : "This department already exists!");
+                        alert(isRtl ? "هذا الخدمة موجود بالفعل!" : "This department already exists!");
                         return;
                       }
                       const updatedMain = [...mainDepartments, trimmed];
@@ -881,7 +881,7 @@ export default function ManageInterns({
                   className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold font-arabic flex items-center gap-0.5"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>{isRtl ? "إضافة قسم" : "Add Dept"}</span>
+                  <span>{isRtl ? "إضافة خدمة" : "Add Dept"}</span>
                 </button>
               </div>
               <select
@@ -890,7 +890,7 @@ export default function ManageInterns({
                 onChange={(e) => setNewInternMainDept(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-xs font-arabic cursor-pointer"
               >
-                <option value="">{isRtl ? "-- اختر قسم الخدمة --" : "-- Select Department --"}</option>
+                <option value="">{isRtl ? "-- اختر خدمة الخدمة --" : "-- Select Department --"}</option>
                 {mainDepartments.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
@@ -997,17 +997,17 @@ export default function ManageInterns({
                       onChange={(e) => setUpdateMainActive(e.target.checked)}
                       className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
                     />
-                    <span>{isRtl ? "تعديل القسم الأساسي" : "Update Primary Department"}</span>
+                    <span>{isRtl ? "تعديل الخدمة الأساسي" : "Update Primary Department"}</span>
                   </label>
                   {updateMainActive && (
                     <button
                       type="button"
                       onClick={() => {
-                        const name = prompt(isRtl ? "أدخل اسم القسم الأساسي الجديد:" : "Enter new primary department name:");
+                        const name = prompt(isRtl ? "أدخل اسم الخدمة الأساسي الجديد:" : "Enter new primary department name:");
                         if (name && name.trim()) {
                           const trimmed = name.trim();
                           if (mainDepartments.includes(trimmed)) {
-                            alert(isRtl ? "هذا القسم موجود بالفعل!" : "This department already exists!");
+                            alert(isRtl ? "هذا الخدمة موجود بالفعل!" : "This department already exists!");
                             return;
                           }
                           const updatedMain = [...mainDepartments, trimmed];
@@ -1018,7 +1018,7 @@ export default function ManageInterns({
                       className="text-[9px] text-indigo-600 hover:text-indigo-800 font-semibold font-arabic flex items-center gap-0.5"
                     >
                       <Plus className="w-2.5 h-2.5" />
-                      <span>{isRtl ? "إضافة قسم" : "Add Dept"}</span>
+                      <span>{isRtl ? "إضافة خدمة" : "Add Dept"}</span>
                     </button>
                   )}
                 </div>
@@ -1028,7 +1028,7 @@ export default function ManageInterns({
                   onChange={(e) => setBulkMainDept(e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-arabic disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
                 >
-                  <option value="">{isRtl ? "-- اختر القسم الأساسي --" : "-- Select Primary Department --"}</option>
+                  <option value="">{isRtl ? "-- اختر الخدمة الأساسي --" : "-- Select Primary Department --"}</option>
                   {mainDepartments.map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -1047,7 +1047,7 @@ export default function ManageInterns({
                       onChange={(e) => setUpdateSecActive(e.target.checked)}
                       className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
                     />
-                    <span>{isRtl ? "تعديل القسم الفرعي" : "Update Secondary Department"}</span>
+                    <span>{isRtl ? "تعديل الخدمة الفرعي" : "Update Secondary Department"}</span>
                   </label>
                   {updateSecActive && (
                     <button
@@ -1132,7 +1132,7 @@ export default function ManageInterns({
                 isRtl ? "pr-11 pl-10" : "pl-11 pr-10"
               }`}
             >
-              <option value="">{isRtl ? "كل الأقسام" : "All Departments"}</option>
+              <option value="">{isRtl ? "كل الخدمات" : "All Departments"}</option>
               {/* Combine primary & secondary in filtering */}
               {Array.from(new Set([...mainDepartments, ...secondaryDepartments])).sort((a, b) => a.localeCompare(b, lang)).map((dept) => (
                 <option key={dept} value={dept}>
@@ -1289,11 +1289,11 @@ export default function ManageInterns({
                           <button
                             type="button"
                             onClick={() => {
-                              const name = prompt(isRtl ? "أدخل اسم القسم الأساسي الجديد:" : "Enter new primary department name:");
+                              const name = prompt(isRtl ? "أدخل اسم الخدمة الأساسي الجديد:" : "Enter new primary department name:");
                               if (name && name.trim()) {
                                 const trimmed = name.trim();
                                 if (mainDepartments.includes(trimmed)) {
-                                  alert(isRtl ? "هذا القسم موجود بالفعل!" : "This department already exists!");
+                                  alert(isRtl ? "هذا الخدمة موجود بالفعل!" : "This department already exists!");
                                   return;
                                 }
                                 const updatedMain = [...mainDepartments, trimmed];
@@ -1304,7 +1304,7 @@ export default function ManageInterns({
                             className="text-[9px] text-indigo-600 hover:text-indigo-800 font-semibold font-arabic self-start flex items-center gap-0.5"
                           >
                             <Plus className="w-2.5 h-2.5" />
-                            <span>{isRtl ? "إضافة قسم" : "Add Dept"}</span>
+                            <span>{isRtl ? "إضافة خدمة" : "Add Dept"}</span>
                           </button>
                         </div>
                       ) : (
@@ -1574,11 +1574,11 @@ export default function ManageInterns({
                       <button
                         type="button"
                         onClick={() => {
-                          const name = prompt(isRtl ? "أدخل اسم القسم الأساسي الجديد:" : "Enter new primary department name:");
+                          const name = prompt(isRtl ? "أدخل اسم الخدمة الأساسي الجديد:" : "Enter new primary department name:");
                           if (name && name.trim()) {
                             const trimmed = name.trim();
                             if (mainDepartments.includes(trimmed)) {
-                              alert(isRtl ? "هذا القسم موجود بالفعل!" : "This department already exists!");
+                              alert(isRtl ? "هذا الخدمة موجود بالفعل!" : "This department already exists!");
                               return;
                             }
                             const updatedMain = [...mainDepartments, trimmed];
@@ -1589,7 +1589,7 @@ export default function ManageInterns({
                         className="text-[9px] text-indigo-600 hover:text-indigo-800 font-semibold font-arabic self-start flex items-center gap-0.5"
                       >
                         <Plus className="w-2.5 h-2.5" />
-                        <span>{isRtl ? "إضافة قسم" : "Add Dept"}</span>
+                        <span>{isRtl ? "إضافة خدمة" : "Add Dept"}</span>
                       </button>
                     </div>
                   ) : (

@@ -443,12 +443,12 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
                       {/* Department Stats Scorecard */}
                       <div className="grid grid-cols-3 gap-3 font-arabic text-slate-800">
                         <div className="bg-indigo-50/50 border border-indigo-100/60 rounded-2xl p-3 text-center">
-                          <span className="text-[9px] text-slate-400 block font-light">{lang === "ar" ? "معدل القسم" : "Dept Score"}</span>
+                          <span className="text-[9px] text-slate-400 block font-light">{lang === "ar" ? "معدل الخدمة" : "Dept Score"}</span>
                           <span className="text-lg font-bold text-indigo-600 font-mono">{deptInfo.overallScore.toFixed(2)}</span>
                           <span className="text-[10px] text-slate-400 font-mono">/5.0</span>
                         </div>
                         <div className="bg-teal-50/50 border border-teal-100/60 rounded-2xl p-3 text-center">
-                          <span className="text-[9px] text-slate-400 block font-light">{lang === "ar" ? "حضور القسم" : "Dept Attendance"}</span>
+                          <span className="text-[9px] text-slate-400 block font-light">{lang === "ar" ? "حضور الخدمة" : "Dept Attendance"}</span>
                           <span className="text-lg font-bold text-teal-600 font-mono">{deptInfo.avgAttendance.toFixed(1)}</span>
                           <span className="text-[9px] text-slate-400 block truncate"> {isRtl ? "يوم/جلسة" : "days/eval"}</span>
                         </div>
@@ -461,7 +461,7 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
 
                       {/* Department Criteria Breakdown */}
                       <div className="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm font-arabic">
-                        <h4 className="text-xs font-bold text-slate-800 mb-3">{lang === "ar" ? "معايير تقييم القسم" : "Department Criteria Scores"}</h4>
+                        <h4 className="text-xs font-bold text-slate-800 mb-3">{lang === "ar" ? "معايير تقييم الخدمة" : "Department Criteria Scores"}</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {metrics.map((m) => {
                             let score = 0;

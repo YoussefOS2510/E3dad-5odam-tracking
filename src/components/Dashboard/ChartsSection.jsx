@@ -109,7 +109,7 @@ export default function ChartsSection({ evaluations, selectedDept, lang }) {
   const radarChartData = metrics.map((m) => ({
     subject: m.label,
     [t.chartOverallAvg]: parseFloat(globalAverages[m.key].toFixed(2)),
-    [targetDeptName ? `${targetDeptName}` : (isRtl ? "القسم المحدد" : "Selected Dept")]: parseFloat(deptAverages[m.key].toFixed(2)),
+    [targetDeptName ? `${targetDeptName}` : (isRtl ? "الخدمة المحدد" : "Selected Dept")]: parseFloat(deptAverages[m.key].toFixed(2)),
   }));
 
   const CustomTooltip = ({ active, payload, label }) => {

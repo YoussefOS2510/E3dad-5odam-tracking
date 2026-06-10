@@ -53,7 +53,7 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
         </h3>
         <span className="text-xs text-slate-400 font-light block mt-0.5">
           {isRtl
-            ? "اختر طالباً لعرض بطاقة التقييمات الفردية المفصلة والتحليلات الخاصة بكل قسم"
+            ? "اختر طالباً لعرض بطاقة التقييمات الفردية المفصلة والتحليلات الخاصة بكل خدمة"
             : "Select an intern to view their individual scorecard and department performance"}
         </span>
       </div>
