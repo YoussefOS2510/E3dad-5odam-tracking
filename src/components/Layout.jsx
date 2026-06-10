@@ -8,15 +8,16 @@ export default function Layout({
   setActiveTab, 
   lang, 
   toggleLang,
-  isAdminMode = false 
+  isAdminMode = false,
+  isReadOnlyAdmin = false 
 }) {
   const t = translations[lang];
   const isRtl = lang === "ar";
 
   const tabs = [
-    { id: "wizard", name: t.wizardTab, icon: ClipboardList },
+    ...(!isReadOnlyAdmin ? [{ id: "wizard", name: t.wizardTab, icon: ClipboardList }] : []),
     { id: "dashboard", name: t.dashboardTab, icon: LayoutDashboard },
-    { id: "interns", name: lang === "ar" ? "بيانات الطلاب" : "Manage Interns", icon: Users }
+    ...(!isReadOnlyAdmin ? [{ id: "interns", name: lang === "ar" ? "بيانات الطلاب" : "Manage Interns", icon: Users }] : [])
   ];
 
   return (

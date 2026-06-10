@@ -48,6 +48,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("");
   const [isAdminMode, setIsAdminMode] = useState(false);
+  const [isReadOnlyAdmin, setIsReadOnlyAdmin] = useState(false);
   const [mainDepartments, setMainDepartments] = useState(FALLBACK_MAIN_DEPTS);
   const [secondaryDepartments, setSecondaryDepartments] = useState(FALLBACK_SEC_DEPTS);
 
@@ -144,9 +145,15 @@ export default function App() {
     const mode = params.get("mode");
     if (mode === "admin" || mode === "dashboard") {
       setIsAdminMode(true);
+      setIsReadOnlyAdmin(false);
+      setActiveTab("dashboard");
+    } else if (mode === "viewer" || mode === "readonly") {
+      setIsAdminMode(true);
+      setIsReadOnlyAdmin(true);
       setActiveTab("dashboard");
     } else {
       setIsAdminMode(false);
+      setIsReadOnlyAdmin(false);
       setActiveTab("wizard");
     }
 
@@ -487,6 +494,7 @@ export default function App() {
       lang={lang}
       toggleLang={toggleLang}
       isAdminMode={isAdminMode}
+      isReadOnlyAdmin={isReadOnlyAdmin}
     >
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 text-indigo-600 font-arabic">
@@ -661,8 +669,8 @@ export default function App() {
               evaluations={evaluations}
               allRotations={rotations}
               onClose={() => setSelectedProfileIntern(null)}
-              onDeleteEvaluation={handleDeleteEvaluation}
-              onUpdateIntern={handleUpdateIntern}
+              onDeleteEvaluation={isReadOnlyAdmin ? null : handleDeleteEvaluation}
+              onUpdateIntern={isReadOnlyAdmin ? null : handleUpdateIntern}
               lang={lang}
             />
           )}
@@ -670,7 +678,7 @@ export default function App() {
         </div>
       )}
 
-      {!loading && activeTab === "interns" && (
+      {!loading && activeTab === "interns" && !isReadOnlyAdmin && (
         <ManageInterns
           rotations={rotations}
           onAddIntern={handleAddIntern}

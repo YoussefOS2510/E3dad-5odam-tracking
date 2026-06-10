@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Filter, Edit2, Check, X, Layers, Users, CheckSquare, Plus, Trash2, UserPlus, Settings } from "lucide-react";
+import { Search, Filter, Edit2, Check, X, Layers, Users, CheckSquare, Plus, Trash2, UserPlus, Settings, Link2 } from "lucide-react";
 import { translations } from "../../translations";
 import InternImage from "../InternImage";
 
@@ -35,6 +35,16 @@ export default function ManageInterns({
   const [bulkSecDept, setBulkSecDept] = useState("");
   const [updateMainActive, setUpdateMainActive] = useState(false);
   const [updateSecActive, setUpdateSecActive] = useState(false);
+
+  // Link copy states
+  const [showLinks, setShowLinks] = useState(false);
+  const [copiedLinkType, setCopiedLinkType] = useState(null);
+
+  const handleCopyLink = (type, url) => {
+    navigator.clipboard.writeText(url);
+    setCopiedLinkType(type);
+    setTimeout(() => setCopiedLinkType(null), 2000);
+  };
 
   // Add Intern state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -247,10 +257,35 @@ export default function ManageInterns({
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Share Links button */}
+          <button
+            onClick={() => {
+              setShowLinks(!showLinks);
+              setShowDeptManager(false);
+              setShowAddForm(false);
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showLinks
+                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
+          >
+            <Link2 className="w-4 h-4 text-slate-500" />
+            <span>{isRtl ? "روابط المشاركة" : "Share Links"}</span>
+          </button>
+
           {/* Manage Departments button */}
           <button
-            onClick={() => setShowDeptManager(!showDeptManager)}
-            className={`px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5`}
+            onClick={() => {
+              setShowDeptManager(!showDeptManager);
+              setShowLinks(false);
+              setShowAddForm(false);
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showDeptManager
+                ? "bg-slate-200 text-slate-800 border border-slate-350"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
           >
             <Settings className="w-4 h-4 text-slate-500" />
             <span>{isRtl ? "إدارة الأقسام" : "Manage Departments"}</span>
@@ -260,6 +295,8 @@ export default function ManageInterns({
           <button
             onClick={() => {
               setShowAddForm(!showAddForm);
+              setShowLinks(false);
+              setShowDeptManager(false);
               if (showAddForm) {
                 setNewInternName("");
                 setNewInternMainDept("");
@@ -267,13 +304,155 @@ export default function ManageInterns({
                 setNewInternPhotoId("");
               }
             }}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all cursor-pointer flex items-center gap-1.5 ${
+              showAddForm
+                ? "bg-slate-850 text-white"
+                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+            }`}
           >
             <UserPlus className="w-4 h-4" />
             <span>{isRtl ? "إضافة طالب جديد" : "Add New Intern"}</span>
           </button>
         </div>
       </div>
+
+      {/* Access Links Card */}
+      {showLinks && (() => {
+        const baseUrl = window.location.origin + window.location.pathname;
+        const responderUrl = `${baseUrl}?mode=responder`;
+        const adminUrl = `${baseUrl}?mode=admin`;
+        const viewerUrl = `${baseUrl}?mode=viewer`;
+
+        return (
+          <div className="bg-gradient-to-br from-indigo-50/30 to-slate-50 border border-indigo-100 rounded-3xl p-6 shadow-sm animate-scale-up" dir={isRtl ? "rtl" : "ltr"}>
+            <div className="flex items-center justify-between border-b border-indigo-100 pb-3 mb-4">
+              <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5 font-arabic">
+                <Link2 className="w-5 h-5 text-indigo-600" />
+                <span>{isRtl ? "روابط الوصول والمشاركة" : "System Access & Sharing Links"}</span>
+              </h3>
+              <button
+                onClick={() => setShowLinks(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-arabic">
+              {/* Responder Link */}
+              <div className="bg-white border border-slate-200/60 rounded-2xl p-4 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-teal-600 font-bold uppercase tracking-wider block">
+                    {isRtl ? "استمارة التقييم فقط" : "Evaluation Form Only"}
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    {isRtl ? "رابط المقيمين ورؤساء الأقسام" : "Evaluators & Dept Heads"}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-light leading-relaxed">
+                    {isRtl 
+                      ? "رابط لتسجيل التقييمات والحضور فقط. لا يمكنهم رؤية النتائج أو البيانات." 
+                      : "Form to register scores and attendance. No dashboard access."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleCopyLink("responder", responderUrl)}
+                  className={`mt-4 w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    copiedLinkType === "responder"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  {copiedLinkType === "responder" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isRtl ? "تم النسخ!" : "Copied!"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{isRtl ? "نسخ الرابط" : "Copy Link"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Read-Only Viewer Link */}
+              <div className="bg-white border border-indigo-100 rounded-2xl p-4 flex flex-col justify-between hover:shadow-sm transition-all duration-200 relative overflow-hidden">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider block">
+                    {isRtl ? "مشاهدة إحصائيات فقط" : "Read-Only Stats"}
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    {isRtl ? "رابط المشرفين والمنسقين" : "Supervisors & Coordinators"}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-light leading-relaxed">
+                    {isRtl 
+                      ? "رابط لمشاهدة جميع نتائج وإحصائيات الطلاب ودرجات الامتحانات دون صلاحيات تعديل." 
+                      : "Access to view dashboards and exam grades. No editing/deleting allowed."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleCopyLink("viewer", viewerUrl)}
+                  className={`mt-4 w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    copiedLinkType === "viewer"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 border border-indigo-100/50"
+                  }`}
+                >
+                  {copiedLinkType === "viewer" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isRtl ? "تم النسخ!" : "Copied!"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>{isRtl ? "نسخ الرابط" : "Copy Link"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Full Admin Link */}
+              <div className="bg-white border border-slate-200/60 rounded-2xl p-4 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block">
+                    {isRtl ? "التحكم الكامل" : "Full Admin Control"}
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    {isRtl ? "رابط الإدارة الرئيسي" : "Super Admin Panel"}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-light leading-relaxed">
+                    {isRtl 
+                      ? "كامل الصلاحيات لرصد الدرجات، وحذف التقييمات، وتعديل الطلاب والأقسام." 
+                      : "Full read-write access to alter grades, delete logs, and edit database."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleCopyLink("admin", adminUrl)}
+                  className={`mt-4 w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    copiedLinkType === "admin"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  {copiedLinkType === "admin" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isRtl ? "تم النسخ!" : "Copied!"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{isRtl ? "نسخ الرابط" : "Copy Link"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Departments Manager Panel */}
       {showDeptManager && (
