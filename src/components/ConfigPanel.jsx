@@ -15,11 +15,15 @@ export default function ConfigPanel({ onApiUrlChange, onDataReset, lang }) {
   const [copiedLink, setCopiedLink] = useState(null);
 
   const getResponderUrl = () => {
-    return window.location.origin + window.location.pathname;
+    const sheetUrl = getGoogleSheetsUrl();
+    const urlParams = sheetUrl ? `?syncUrl=${encodeURIComponent(sheetUrl)}` : "";
+    return window.location.origin + window.location.pathname + urlParams;
   };
 
   const getAdminUrl = () => {
-    return window.location.origin + window.location.pathname + "?mode=admin";
+    const sheetUrl = getGoogleSheetsUrl();
+    const urlParams = sheetUrl ? `&syncUrl=${encodeURIComponent(sheetUrl)}` : "";
+    return window.location.origin + window.location.pathname + "?mode=admin" + urlParams;
   };
 
   const copyUrl = (url, type) => {

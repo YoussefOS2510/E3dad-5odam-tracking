@@ -151,6 +151,18 @@ export default function App() {
   useEffect(() => {
     // Detect app mode based on query param
     const params = new URLSearchParams(window.location.search);
+    
+    // Parse Google Sheets URL from sharing link if present, and save it
+    const syncUrl = params.get("syncUrl");
+    if (syncUrl) {
+      localStorage.setItem("google_sheets_api_url", syncUrl);
+      // Clean up the URL parameter from the browser address bar for aesthetics and control
+      params.delete("syncUrl");
+      const newSearch = params.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : "");
+      window.history.replaceState({}, document.title, newPath);
+    }
+
     const mode = params.get("mode");
     if (mode === "admin" || mode === "dashboard") {
       setIsAdminMode(true);

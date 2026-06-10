@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Filter, Edit2, Check, X, Layers, Users, CheckSquare, Plus, Trash2, UserPlus, Settings, Link2 } from "lucide-react";
 import { translations } from "../../translations";
 import InternImage from "../InternImage";
+import { getGoogleSheetsUrl } from "../../mockData";
 
 export default function ManageInterns({
   rotations,
@@ -39,6 +40,16 @@ export default function ManageInterns({
   // Link copy states
   const [showLinks, setShowLinks] = useState(false);
   const [copiedLinkType, setCopiedLinkType] = useState(null);
+
+  // Database config states
+  const [showDbConfig, setShowDbConfig] = useState(false);
+  const [dbUrl, setDbUrl] = useState("");
+  const [testStatus, setTestStatus] = useState(null); // 'testing' | 'success' | 'error'
+  const [testMsg, setTestMsg] = useState("");
+
+  useEffect(() => {
+    setDbUrl(getGoogleSheetsUrl());
+  }, []);
 
   const handleCopyLink = (type, url) => {
     navigator.clipboard.writeText(url);
@@ -85,7 +96,9 @@ export default function ManageInterns({
       alert(isRtl ? "الرجاء إدخال اسم الطالب!" : "Please enter intern name!");
       return;
     }
+    const originalIntern = rotations.find((r) => r.intern_name === oldName) || {};
     onUpdateIntern(oldName, {
+      ...originalIntern,
       intern_name: editInternName.trim(),
       main_department: editMainDept,
       secondary_department: editSecDept,
@@ -263,6 +276,7 @@ export default function ManageInterns({
               setShowLinks(!showLinks);
               setShowDeptManager(false);
               setShowAddForm(false);
+              setShowDbConfig(false);
             }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               showLinks
@@ -280,6 +294,7 @@ export default function ManageInterns({
               setShowDeptManager(!showDeptManager);
               setShowLinks(false);
               setShowAddForm(false);
+              setShowDbConfig(false);
             }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               showDeptManager
@@ -287,8 +302,26 @@ export default function ManageInterns({
                 : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
             }`}
           >
-            <Settings className="w-4 h-4 text-slate-500" />
+            <Layers className="w-4 h-4 text-slate-500" />
             <span>{isRtl ? "إدارة الأقسام" : "Manage Departments"}</span>
+          </button>
+
+          {/* Database Config button */}
+          <button
+            onClick={() => {
+              setShowDbConfig(!showDbConfig);
+              setShowLinks(false);
+              setShowDeptManager(false);
+              setShowAddForm(false);
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showDbConfig
+                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
+          >
+            <Settings className="w-4 h-4 text-slate-500" />
+            <span>{isRtl ? "إعدادات الربط" : "Sheets Sync"}</span>
           </button>
           
           {/* Add Intern button */}
@@ -297,6 +330,7 @@ export default function ManageInterns({
               setShowAddForm(!showAddForm);
               setShowLinks(false);
               setShowDeptManager(false);
+              setShowDbConfig(false);
               if (showAddForm) {
                 setNewInternName("");
                 setNewInternMainDept("");
@@ -316,12 +350,116 @@ export default function ManageInterns({
         </div>
       </div>
 
+      {/* Database Config Card */}
+      {showDbConfig && (() => {
+        const handleSaveUrl = async (e) => {
+          e.preventDefault();
+          const url = dbUrl.trim();
+          const { setGoogleSheetsUrl } = await import("../../mockData");
+          setGoogleSheetsUrl(url);
+          alert(isRtl ? "تم حفظ الرابط بنجاح! سيتم إعادة تحميل الصفحة لتطبيق التغييرات." : "URL saved successfully! The page will reload to apply changes.");
+          window.location.reload();
+        };
+
+        const handleTestConnection = async () => {
+          setTestStatus("testing");
+          setTestMsg(isRtl ? "جاري الاتصال..." : "Connecting...");
+          try {
+            const { fetchData } = await import("../../api");
+            const oldUrl = localStorage.getItem("google_sheets_api_url");
+            localStorage.setItem("google_sheets_api_url", dbUrl.trim());
+            const res = await fetchData();
+            if (res.source === "sheets") {
+              setTestStatus("success");
+              setTestMsg(isRtl ? "تم الاتصال بنجاح بسحابة Google Sheets!" : "Connected successfully to Google Sheets!");
+            } else {
+              setTestStatus("error");
+              setTestMsg(isRtl ? "فشل الاتصال. تأكد من صحة الرابط ونشر السيناريو كـ Web App." : "Connection failed. Check URL or Web App deployment.");
+            }
+            if (oldUrl) localStorage.setItem("google_sheets_api_url", oldUrl);
+            else localStorage.removeItem("google_sheets_api_url");
+          } catch (err) {
+            setTestStatus("error");
+            setTestMsg(err.message);
+          }
+        };
+
+        return (
+          <div className="bg-gradient-to-br from-indigo-50/30 to-slate-50 border border-indigo-100 rounded-3xl p-6 shadow-sm animate-scale-up" dir={isRtl ? "rtl" : "ltr"}>
+            <div className="flex items-center justify-between border-b border-indigo-100 pb-3 mb-4">
+              <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5 font-arabic">
+                <Settings className="w-5 h-5 text-indigo-600" />
+                <span>{isRtl ? "إعدادات ربط Google Sheets" : "Google Sheets Sync Configuration"}</span>
+              </h3>
+              <button
+                onClick={() => setShowDbConfig(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUrl} className="space-y-4 font-arabic">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  {isRtl ? "رابط Google Apps Script (Web App URL)" : "Google Apps Script Web App URL"}
+                </label>
+                <input
+                  type="url"
+                  value={dbUrl}
+                  onChange={(e) => setDbUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-mono"
+                  required
+                />
+                <span className="text-[10px] text-slate-400 font-light block leading-relaxed mt-1">
+                  {isRtl
+                    ? "الصق رابط الويب المكتمل (Web App URL) المنتهي بـ /exec بعد نشر الكود في Apps Script."
+                    : "Paste the deployment Web App URL ending in /exec from your Google Sheet Apps Script editor."}
+                </span>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testStatus === "testing" || !dbUrl}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 transition-colors"
+                >
+                  {isRtl ? "اختبار الاتصال" : "Test Connection"}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  {isRtl ? "حفظ الرابط" : "Save URL"}
+                </button>
+              </div>
+
+              {testStatus && (
+                <div className={`p-3 rounded-xl text-xs font-semibold mt-2 ${
+                  testStatus === "success"
+                    ? "bg-emerald-50 border border-emerald-100 text-emerald-700"
+                    : testStatus === "error"
+                    ? "bg-rose-50 border border-rose-100 text-rose-700"
+                    : "bg-slate-50 border border-slate-100 text-slate-500"
+                }`}>
+                  {testMsg}
+                </div>
+              )}
+            </form>
+          </div>
+        );
+      })()}
+
       {/* Access Links Card */}
       {showLinks && (() => {
         const baseUrl = window.location.origin + window.location.pathname;
-        const responderUrl = `${baseUrl}?mode=responder`;
-        const adminUrl = `${baseUrl}?mode=admin`;
-        const viewerUrl = `${baseUrl}?mode=viewer`;
+        const sheetUrl = getGoogleSheetsUrl();
+        const urlParams = sheetUrl ? `&syncUrl=${encodeURIComponent(sheetUrl)}` : "";
+        const responderUrl = `${baseUrl}?mode=responder${urlParams}`;
+        const adminUrl = `${baseUrl}?mode=admin${urlParams}`;
+        const viewerUrl = `${baseUrl}?mode=viewer${urlParams}`;
 
         return (
           <div className="bg-gradient-to-br from-indigo-50/30 to-slate-50 border border-indigo-100 rounded-3xl p-6 shadow-sm animate-scale-up" dir={isRtl ? "rtl" : "ltr"}>
