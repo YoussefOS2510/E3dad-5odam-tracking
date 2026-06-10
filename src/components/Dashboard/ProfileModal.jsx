@@ -4,7 +4,39 @@ import { translations } from "../../translations";
 import InternImage from "../InternImage";
 import { calculateInternOverallScore } from "../../utils/scoreCalculator";
 
-export default function ProfileModal({ internName, evaluations, allRotations, onClose, onDeleteEvaluation, lang }) {
+const EXAMS_LIST = [
+  "كتاب مقدس",
+  "عقيده",
+  "تاريخ كنيسه",
+  "دفاعيات",
+  "لاهوت روحي",
+  "كورس كيف اخدم",
+  "طقس",
+  "ابائيات",
+  "نمو شخصيه",
+  "لاهوت مقارن",
+  "خلوة",
+  "مؤتمر",
+  "Summer project"
+];
+
+const EXAM_ICONS = {
+  "كتاب مقدس": "📖",
+  "عقيده": "🛡️",
+  "تاريخ كنيسه": "⛪",
+  "دفاعيات": "⚔️",
+  "لاهوت روحي": "🔥",
+  "كورس كيف اخدم": "💼",
+  "طقس": "🕯️",
+  "ابائيات": "📜",
+  "نمو شخصيه": "🌱",
+  "لاهوت مقارن": "⚖️",
+  "خلوة": "🧘",
+  "مؤتمر": "👥",
+  "Summer project": "☀️"
+};
+
+export default function ProfileModal({ internName, evaluations, allRotations, onClose, onDeleteEvaluation, onUpdateIntern, lang }) {
   const t = translations[lang];
   const isRtl = lang === "ar";
 
@@ -22,9 +54,17 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
   const totalEvals = scoreResult.totalEvals;
   const evaluatedDepts = Object.keys(scoreResult.departments);
 
-  // Dynamic active tab switcher
-  const [activeDeptState, setActiveDeptState] = useState("");
-  const currentDept = evaluatedDepts.includes(activeDeptState) ? activeDeptState : (evaluatedDepts[0] || "");
+  // Dynamic active tab switcher (Departments & Exams)
+  const allTabs = [...evaluatedDepts, "exams"];
+  const [activeTabState, setActiveTabState] = useState(evaluatedDepts[0] || "exams");
+  const currentTab = allTabs.includes(activeTabState) ? activeTabState : "exams";
+
+  // Keep activeDeptState references working where needed
+  const currentDept = evaluatedDepts.includes(currentTab) ? currentTab : "";
+
+  // Exams editing state
+  const [editingExam, setEditingExam] = useState(null);
+  const [editGradeVal, setEditGradeVal] = useState("");
 
   const metrics = [
     { key: "commitment_time", label: t.radarCommitment, color: "bg-rose-500" },
@@ -186,28 +226,224 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
             </div>
           </div>
 
-          {/* Department Tabs */}
-          {evaluatedDepts.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-5 bg-slate-200/60 p-1 rounded-xl border border-slate-200/40">
-              {evaluatedDepts.map((dept) => (
-                <button
-                  key={dept}
-                  onClick={() => setActiveDeptState(dept)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-arabic font-semibold transition-all duration-200 cursor-pointer ${
-                    currentDept === dept
-                      ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {dept}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Department & Exams Tabs */}
+          <div className="flex flex-wrap gap-1.5 mb-5 bg-slate-200/60 p-1 rounded-xl border border-slate-200/40">
+            {evaluatedDepts.map((dept) => (
+              <button
+                key={dept}
+                onClick={() => setActiveTabState(dept)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-arabic font-semibold transition-all duration-200 cursor-pointer ${
+                  currentTab === dept
+                    ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {dept}
+              </button>
+            ))}
+            <button
+              onClick={() => setActiveTabState("exams")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-arabic font-semibold transition-all duration-200 cursor-pointer ${
+                currentTab === "exams"
+                  ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {isRtl ? "📋 درجات الامتحانات" : "📋 Exam Grades"}
+            </button>
+          </div>
 
           {/* Timeline & Department Details */}
           <div className="flex-1 overflow-visible md:overflow-y-auto space-y-5 pr-2">
-            {totalEvals === 0 ? (
+            {currentTab === "exams" ? (
+              <div className="space-y-6 animate-fade-in font-arabic">
+                {/* Header Info */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                  <div className={isRtl ? "text-right" : "text-left"} dir={isRtl ? "rtl" : "ltr"}>
+                    <h3 className="font-bold text-slate-800 text-sm">
+                      {isRtl ? "كشف درجات امتحانات الطلاب" : "Student Exams Transcript"}
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-light block">
+                      {isRtl 
+                        ? "درجة النجاح هي 70% أو أكثر. اضغط على 'رصد الدرجة' لتسجيل الدرجات."
+                        : "Passing grade is 70% or more. Click 'Edit Grade' to register grades."}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Overall Exams Progress Overview */}
+                {(() => {
+                  const grades = rotationInfo.exams || {};
+                  const totalExams = EXAMS_LIST.length;
+                  const passedCount = Object.keys(grades).filter(k => EXAMS_LIST.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
+                  const percentPassed = totalExams > 0 ? Math.round((passedCount / totalExams) * 100) : 0;
+                  
+                  return (
+                    <div className="bg-gradient-to-br from-indigo-50/50 to-slate-50 border border-indigo-100/60 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4 justify-between" dir={isRtl ? "rtl" : "ltr"}>
+                      <div className="space-y-1 text-center sm:text-right flex-1 w-full">
+                        <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider block">
+                          {isRtl ? "معدل إتمام الامتحانات" : "Exams Completion"}
+                        </span>
+                        <h4 className="text-sm font-black text-slate-800">
+                          {isRtl 
+                            ? `تم اجتياز ${passedCount} من أصل ${totalExams} امتحانات بنجاح` 
+                            : `Passed ${passedCount} of ${totalExams} exams successfully`}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-light">
+                          {isRtl ? "درجة النجاح في كل امتحان هي 70% على الأقل" : "Passing grade for each exam is 70% or higher"}
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[120px]">
+                        <span className="text-xl font-black text-indigo-600 font-mono">{percentPassed}%</span>
+                        <div className="w-28 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${percentPassed}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Exams Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {EXAMS_LIST.map((exam) => {
+                    const grades = rotationInfo.exams || {};
+                    const grade = grades[exam];
+                    const isExamEditing = editingExam === exam;
+                    const hasGrade = grade !== undefined && grade !== null && grade !== "";
+                    const isPassed = hasGrade && Number(grade) >= 70;
+                    const icon = EXAM_ICONS[exam] || "📋";
+
+                    return (
+                      <div
+                        key={exam}
+                        className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between ${
+                          hasGrade
+                            ? isPassed
+                              ? "border-emerald-200 bg-emerald-50/5"
+                              : "border-rose-200 bg-rose-50/5"
+                            : "border-slate-200 hover:border-indigo-100"
+                        }`}
+                      >
+                        {/* Card Top: Title & Status Badge */}
+                        <div className="flex items-center justify-between gap-2" dir={isRtl ? "rtl" : "ltr"}>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-base flex-shrink-0 select-none">{icon}</span>
+                            <span className="font-bold text-slate-800 text-xs truncate text-right w-full">{exam}</span>
+                          </div>
+                          {hasGrade ? (
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                isPassed
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {isPassed ? (isRtl ? "ناجح" : "Passed") : (isRtl ? "يحتاج تحسين" : "Action Needed")}
+                            </span>
+                          ) : (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-semibold bg-slate-100 text-slate-500">
+                              {isRtl ? "غير مرصود" : "Not Set"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Card Middle: Score & Input Field */}
+                        <div className="my-3 flex items-center justify-between" dir={isRtl ? "rtl" : "ltr"}>
+                          {isExamEditing ? (
+                            <div className="flex items-center gap-1 w-full justify-start">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={editGradeVal}
+                                onChange={(e) => setEditGradeVal(e.target.value)}
+                                className="w-16 px-2 py-1 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-semibold font-mono"
+                                placeholder="0-100"
+                                autoFocus
+                              />
+                              <span className="text-xs text-slate-400 font-mono">%</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-baseline gap-0.5">
+                              {hasGrade ? (
+                                <>
+                                  <span className={`text-2xl font-black font-mono ${isPassed ? "text-emerald-600" : "text-rose-600"}`}>
+                                    {grade}
+                                  </span>
+                                  <span className="text-xs text-slate-400 font-mono">%</span>
+                                </>
+                              ) : (
+                                <span className="text-xl font-bold text-slate-300 font-mono">-</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Edit Actions */}
+                          <div>
+                            {isExamEditing ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    const val = Number(editGradeVal);
+                                    if (editGradeVal !== "" && (isNaN(val) || val < 0 || val > 100)) {
+                                      alert(isRtl ? "الرجاء إدخال درجة صحيحة بين 0 و 100!" : "Please enter a valid grade between 0 and 100!");
+                                      return;
+                                    }
+                                    const updatedGrades = {
+                                      ...(rotationInfo.exams || {}),
+                                      [exam]: editGradeVal === "" ? "" : val
+                                    };
+                                    onUpdateIntern(internName, {
+                                      ...rotationInfo,
+                                      exams: updatedGrades
+                                    });
+                                    setEditingExam(null);
+                                  }}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                                >
+                                  {isRtl ? "حفظ" : "Save"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingExam(null)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-semibold cursor-pointer transition-colors"
+                                >
+                                  {isRtl ? "إلغاء" : "Cancel"}
+                                </button>
+                              </div>
+                            ) : (
+                              onUpdateIntern && (
+                                <button
+                                  onClick={() => {
+                                    setEditingExam(exam);
+                                    setEditGradeVal(hasGrade ? String(grade) : "");
+                                  }}
+                                  className="px-2.5 py-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer text-[10px] font-bold"
+                                >
+                                  {isRtl ? "رصد الدرجة" : "Edit Grade"}
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Card Bottom: Progress Bar */}
+                        {hasGrade && !isExamEditing && (
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isPassed ? "bg-emerald-500" : "bg-rose-500"
+                              }`}
+                              style={{ width: `${grade}%` }}
+                            ></div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : totalEvals === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 font-arabic text-center">
                 <FileText className="w-12 h-12 text-slate-300 mb-3" />
                 <p className="font-bold text-slate-500">{t.profileNoHistory}</p>

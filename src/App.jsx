@@ -662,6 +662,7 @@ export default function App() {
               allRotations={rotations}
               onClose={() => setSelectedProfileIntern(null)}
               onDeleteEvaluation={handleDeleteEvaluation}
+              onUpdateIntern={handleUpdateIntern}
               lang={lang}
             />
           )}

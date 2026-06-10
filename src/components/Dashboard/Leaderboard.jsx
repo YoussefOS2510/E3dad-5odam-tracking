@@ -14,7 +14,8 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
       name: r.intern_name,
       mainDept: r.main_department,
       secDept: r.secondary_department,
-      photoId: r.drive_photo_id
+      photoId: r.drive_photo_id,
+      exams: r.exams
     };
   });
 
@@ -87,6 +88,37 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
                   </span>
                 )}
               </div>
+
+              {/* Exams Summary */}
+              {(() => {
+                const EXAMS_LIST = [
+                  "كتاب مقدس",
+                  "عقيده",
+                  "تاريخ كنيسه",
+                  "دفاعيات",
+                  "لاهوت روحي",
+                  "كورس كيف اخدم",
+                  "طقس",
+                  "ابائيات",
+                  "نمو شخصيه",
+                  "لاهوت مقارن",
+                  "خلوة",
+                  "مؤتمر",
+                  "Summer project"
+                ];
+                const grades = intern.exams || {};
+                const totalExams = EXAMS_LIST.length;
+                const passedCount = Object.keys(grades).filter(k => EXAMS_LIST.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
+
+                return (
+                  <div className="mt-2 text-[10px] font-arabic font-medium text-slate-500 bg-slate-50/50 px-2.5 py-1 rounded-xl border border-slate-200/40 flex justify-between w-full" dir={isRtl ? "rtl" : "ltr"}>
+                    <span>{isRtl ? "الامتحانات المجتازة" : "Passed Exams"}</span>
+                    <span className={passedCount === totalExams ? "text-emerald-600 font-bold" : "text-indigo-600 font-bold"}>
+                      {passedCount} / {totalExams}
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Action Button */}
               <div className="w-full mt-auto pt-4">
