@@ -429,7 +429,7 @@ function doPost(e) {
         rotationsSheet = ss.insertSheet('Department_Rotations');
       }
       rotationsSheet.clearContents();
-      rotationsSheet.appendRow(['Main Department', 'Secondary Department', 'Intern Name', 'Intern Photo ID']);
+      rotationsSheet.appendRow(['Main Department', 'Secondary Department', 'Intern Name', 'Intern Photo ID', 'Exams']);
       
       var data = postData.data || [];
       var rows = [];
@@ -439,11 +439,12 @@ function doPost(e) {
           r.main_department || '',
           r.secondary_department || '',
           r.intern_name || '',
-          r.drive_photo_id || ''
+          r.drive_photo_id || '',
+          r.exams ? JSON.stringify(r.exams) : '{}'
         ]);
       }
       if (rows.length > 0) {
-        rotationsSheet.getRange(2, 1, rows.length, 4).setValues(rows);
+        rotationsSheet.getRange(2, 1, rows.length, 5).setValues(rows);
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true }))
          .setMimeType(ContentService.MimeType.JSON);

@@ -44,15 +44,19 @@ const normalizeRotation = (r) => {
   normalized.drive_photo_id = photoKey ? r[photoKey] : (r.drive_photo_id || "");
 
   // Normalize exams
-  if (r.exams) {
-    if (typeof r.exams === "string") {
+  const examsKey = Object.keys(r).find(
+    (k) => k.toLowerCase().replace(/[\s_-]/g, "") === "exams"
+  );
+  const rawExams = examsKey ? r[examsKey] : (r.exams || null);
+  if (rawExams) {
+    if (typeof rawExams === "string" && rawExams.trim() !== "") {
       try {
-        normalized.exams = JSON.parse(r.exams);
+        normalized.exams = JSON.parse(rawExams);
       } catch (e) {
         normalized.exams = {};
       }
     } else {
-      normalized.exams = r.exams;
+      normalized.exams = rawExams;
     }
   } else {
     normalized.exams = {};
