@@ -43,6 +43,21 @@ const normalizeRotation = (r) => {
   );
   normalized.drive_photo_id = photoKey ? r[photoKey] : (r.drive_photo_id || "");
 
+  // Normalize exams
+  if (r.exams) {
+    if (typeof r.exams === "string") {
+      try {
+        normalized.exams = JSON.parse(r.exams);
+      } catch (e) {
+        normalized.exams = {};
+      }
+    } else {
+      normalized.exams = r.exams;
+    }
+  } else {
+    normalized.exams = {};
+  }
+
   // Trim string values
   if (typeof normalized.intern_name === "string") normalized.intern_name = normalized.intern_name.trim();
   if (typeof normalized.main_department === "string") normalized.main_department = normalized.main_department.trim();

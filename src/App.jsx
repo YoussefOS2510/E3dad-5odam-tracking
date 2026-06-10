@@ -103,22 +103,31 @@ export default function App() {
     if (localModifications) {
       try {
         const localMods = JSON.parse(localModifications);
-        const localMap = {};
-        localMods.forEach((m) => {
-          if (m.intern_name) localMap[m.intern_name] = m;
-        });
+        const mergedMap = {};
         
-        fetchedRotations = fetchedRotations.map((r) => {
-          const mod = localMap[r.intern_name];
-          if (mod) {
-            return {
-              ...r,
-              main_department: mod.main_department,
-              secondary_department: mod.secondary_department
-            };
-          }
-          return r;
+        // Seed with fetched rotations
+        fetchedRotations.forEach((r) => {
+          if (r.intern_name) mergedMap[r.intern_name] = r;
         });
+
+        // Merge local modifications, overwriting matching fields and retaining new records
+        localMods.forEach((m) => {
+          if (m.intern_name) {
+            if (mergedMap[m.intern_name]) {
+              mergedMap[m.intern_name] = {
+                ...mergedMap[m.intern_name],
+                main_department: m.main_department,
+                secondary_department: m.secondary_department,
+                drive_photo_id: m.drive_photo_id || mergedMap[m.intern_name].drive_photo_id,
+                exams: m.exams || mergedMap[m.intern_name].exams || {}
+              };
+            } else {
+              mergedMap[m.intern_name] = m;
+            }
+          }
+        });
+
+        fetchedRotations = Object.values(mergedMap);
       } catch (e) {
         console.error("Failed to merge local rotation modifications:", e);
       }
