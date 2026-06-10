@@ -76,7 +76,7 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       {/* Modal Container */}
-      <div className={`bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden max-h-[90vh] md:max-h-[85vh] animate-scale-up ${
+      <div className={`bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 flex flex-col overflow-y-auto md:overflow-hidden max-h-[95vh] md:max-h-[85vh] animate-scale-up ${
         isRtl ? "md:flex-row text-right" : "md:flex-row text-left"
       }`} dir={isRtl ? "rtl" : "ltr"}>
         
@@ -167,7 +167,7 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
         </div>
 
         {/* Right Area: Evaluation History Timeline (2/3 width) */}
-        <div className="flex-1 flex flex-col p-6 overflow-hidden bg-slate-50">
+        <div className="flex-1 flex flex-col p-6 overflow-visible md:overflow-hidden bg-slate-50">
           
           {/* Header Row */}
           <div className={`flex justify-between items-center mb-5 border-b border-slate-200 pb-3 ${
@@ -206,7 +206,7 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
           )}
 
           {/* Timeline & Department Details */}
-          <div className="flex-1 overflow-y-auto space-y-5 pr-2">
+          <div className="flex-1 overflow-visible md:overflow-y-auto space-y-5 pr-2">
             {totalEvals === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 font-arabic text-center">
                 <FileText className="w-12 h-12 text-slate-300 mb-3" />

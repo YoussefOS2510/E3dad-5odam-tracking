@@ -22,11 +22,12 @@ export default function InternImage({ internName, drivePhotoId, className = "", 
   // 4. Local /interns/Name/1 (no extension check)
   // 5. Google Drive ID
   const sources = [
+    drivePhotoId && (drivePhotoId.startsWith("data:") || drivePhotoId.startsWith("http")) ? drivePhotoId : null,
     `/interns/${encodeURIComponent(nameClean)}/1.jpg`,
     `/interns/${encodeURIComponent(nameClean)}/1.png`,
     `/interns/${encodeURIComponent(nameClean)}/1.jpeg`,
     `/interns/${encodeURIComponent(nameClean)}/1`,
-    drivePhotoId ? `https://lh3.googleusercontent.com/d/${drivePhotoId}` : null
+    drivePhotoId && !drivePhotoId.startsWith("data:") && !drivePhotoId.startsWith("http") ? `https://lh3.googleusercontent.com/d/${drivePhotoId}` : null
   ].filter(Boolean);
 
   useEffect(() => {

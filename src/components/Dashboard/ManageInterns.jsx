@@ -410,18 +410,62 @@ export default function ManageInterns({
               />
             </div>
 
-            {/* Google Drive Photo ID */}
+            {/* Personal Photo Selection & Drive ID */}
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-600 font-arabic">
-                {isRtl ? "معرف الصورة على Google Drive" : "Google Drive Photo ID"}
+                {isRtl ? "صورة الطالب (رفع ملف أو معرف Drive)" : "Intern Photo (Upload or Drive ID)"}
               </label>
-              <input
-                type="text"
-                value={newInternPhotoId}
-                onChange={(e) => setNewInternPhotoId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-xs font-mono"
-                placeholder="11mMRtDGITY-Y1zs..."
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newInternPhotoId}
+                  onChange={(e) => setNewInternPhotoId(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-xs font-mono"
+                  placeholder={isRtl ? "معرف Drive أو رابط أو base64..." : "Drive ID, link or base64..."}
+                />
+                <label className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0">
+                  <span>{isRtl ? "رفع صورة" : "Upload"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const img = new Image();
+                          img.onload = () => {
+                            const canvas = document.createElement("canvas");
+                            const max_size = 120;
+                            let width = img.width;
+                            let height = img.height;
+                            if (width > height) {
+                              if (width > max_size) {
+                                height *= max_size / width;
+                                width = max_size;
+                              }
+                            } else {
+                              if (height > max_size) {
+                                width *= max_size / height;
+                                height = max_size;
+                              }
+                            }
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext("2d");
+                            ctx.drawImage(img, 0, 0, width, height);
+                            const compressed = canvas.toDataURL("image/jpeg", 0.7);
+                            setNewInternPhotoId(compressed);
+                          };
+                          img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             {/* Main Dept */}
@@ -782,13 +826,57 @@ export default function ManageInterns({
                               onChange={(e) => setEditInternName(e.target.value)}
                               className="px-2 py-1 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-semibold"
                             />
-                            <input
-                              type="text"
-                              placeholder="Drive Photo ID"
-                              value={editDrivePhotoId}
-                              onChange={(e) => setEditDrivePhotoId(e.target.value)}
-                              className="px-2 py-0.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[10px] w-full font-mono"
-                            />
+                            <div className="flex gap-1 items-center">
+                              <input
+                                type="text"
+                                placeholder={isRtl ? "معرف الصورة" : "Photo ID/Link"}
+                                value={editDrivePhotoId}
+                                onChange={(e) => setEditDrivePhotoId(e.target.value)}
+                                className="px-2 py-0.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[10px] w-24 font-mono"
+                              />
+                              <label className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9px] font-semibold cursor-pointer transition-all flex items-center justify-center flex-shrink-0">
+                                <span>{isRtl ? "رفع" : "Upload"}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        const img = new Image();
+                                        img.onload = () => {
+                                          const canvas = document.createElement("canvas");
+                                          const max_size = 120;
+                                          let width = img.width;
+                                          let height = img.height;
+                                          if (width > height) {
+                                            if (width > max_size) {
+                                              height *= max_size / width;
+                                              width = max_size;
+                                            }
+                                          } else {
+                                            if (height > max_size) {
+                                              width *= max_size / height;
+                                              height = max_size;
+                                            }
+                                          }
+                                          canvas.width = width;
+                                          canvas.height = height;
+                                          const ctx = canvas.getContext("2d");
+                                          ctx.drawImage(img, 0, 0, width, height);
+                                          const compressed = canvas.toDataURL("image/jpeg", 0.7);
+                                          setEditDrivePhotoId(compressed);
+                                        };
+                                        img.src = event.target.result;
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
                           </div>
                         ) : (
                           <span className="font-arabic">{intern.intern_name}</span>
@@ -981,13 +1069,57 @@ export default function ManageInterns({
                         className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-semibold"
                         placeholder={isRtl ? "الاسم..." : "Name..."}
                       />
-                      <input
-                        type="text"
-                        placeholder="Drive Photo ID"
-                        value={editDrivePhotoId}
-                        onChange={(e) => setEditDrivePhotoId(e.target.value)}
-                        className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-[10px] font-mono"
-                      />
+                      <div className="flex gap-1.5 items-center w-full">
+                        <input
+                          type="text"
+                          placeholder={isRtl ? "معرف الصورة" : "Photo ID/Link"}
+                          value={editDrivePhotoId}
+                          onChange={(e) => setEditDrivePhotoId(e.target.value)}
+                          className="flex-1 px-2.5 py-1 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-[10px] font-mono"
+                        />
+                        <label className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-[10px] font-semibold cursor-pointer transition-all flex items-center justify-center flex-shrink-0">
+                          <span>{isRtl ? "رفع صورة" : "Upload"}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                  const img = new Image();
+                                  img.onload = () => {
+                                    const canvas = document.createElement("canvas");
+                                    const max_size = 120;
+                                    let width = img.width;
+                                    let height = img.height;
+                                    if (width > height) {
+                                      if (width > max_size) {
+                                        height *= max_size / width;
+                                        width = max_size;
+                                      }
+                                    } else {
+                                      if (height > max_size) {
+                                        width *= max_size / height;
+                                        height = max_size;
+                                      }
+                                    }
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext("2d");
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    const compressed = canvas.toDataURL("image/jpeg", 0.7);
+                                    setEditDrivePhotoId(compressed);
+                                  };
+                                  img.src = event.target.result;
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                   ) : (
                     <span className="font-arabic font-bold text-slate-800 text-sm">{intern.intern_name}</span>
