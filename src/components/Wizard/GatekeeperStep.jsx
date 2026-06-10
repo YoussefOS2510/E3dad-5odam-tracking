@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { User, Layers, ArrowRight, ArrowLeft } from "lucide-react";
 import { translations } from "../../translations";
 
-export default function GatekeeperStep({ rotations, onStartSession, initialSupervisorName = "", initialDepartment = "", lang }) {
+export default function GatekeeperStep({ rotations, allDepartments, onStartSession, initialSupervisorName = "", initialDepartment = "", lang }) {
   const t = translations[lang];
   const isRtl = lang === "ar";
 
@@ -11,8 +11,14 @@ export default function GatekeeperStep({ rotations, onStartSession, initialSuper
   const [departments, setDepartments] = useState([]);
   const [error, setError] = useState("");
 
-  // Aggregate unique departments from rotations
+  // Build department list: prefer the Firebase master list (allDepartments),
+  // fall back to deriving unique departments from rotations
   useEffect(() => {
+    if (allDepartments && allDepartments.length > 0) {
+      setDepartments(allDepartments);
+      return;
+    }
+
     if (!rotations || rotations.length === 0) return;
 
     const deptSet = new Set();
@@ -21,12 +27,11 @@ export default function GatekeeperStep({ rotations, onStartSession, initialSuper
       if (row.secondary_department) deptSet.add(row.secondary_department.trim());
     });
 
-    // Sort alphabetically
     const sortedDepts = Array.from(deptSet).sort((a, b) =>
       a.localeCompare(b, lang)
     );
     setDepartments(sortedDepts);
-  }, [rotations, lang]);
+  }, [allDepartments, rotations, lang]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

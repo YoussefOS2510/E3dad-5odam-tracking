@@ -3,16 +3,21 @@ import {
   getLocalRotations,
   getLocalEvaluations,
   getLocalDepartments,
+  getLocalExamsList,
   saveLocalEvaluationBatch,
   saveLocalRotations,
+  saveLocalEvaluations,
   saveLocalDepartments,
+  saveLocalExamsList,
   getFirestoreRotations,
   getFirestoreEvaluations,
   getFirestoreDepartments,
+  getFirestoreConfig,
   saveFirestoreRotations,
   saveFirestoreEvaluations,
   appendFirestoreEvaluations,
   saveFirestoreDepartments,
+  saveFirestoreConfig,
   migrateLocalToFirestore,
   getGoogleSheetsUrl,
   setGoogleSheetsUrl,
@@ -95,22 +100,27 @@ export const fetchData = async () => {
       // Seed Firestore from local data if it's empty (first-time setup)
       await withTimeout(migrateLocalToFirestore(), 10000);
 
-      // Fetch all three collections with a timeout so the app never hangs
-      const [firestoreRotations, firestoreEvaluations, firestoreDepartments] =
+      // Fetch all four collections with a timeout so the app never hangs
+      const [firestoreRotations, firestoreEvaluations, firestoreDepartments, firestoreConfig] =
         await Promise.all([
           withTimeout(getFirestoreRotations()),
           withTimeout(getFirestoreEvaluations()),
           withTimeout(getFirestoreDepartments()),
+          withTimeout(getFirestoreConfig()),
         ]);
 
       if (firestoreRotations !== null) {
-        // Update local cache
+        // Update local cache for all four collections
         saveLocalRotations(firestoreRotations);
+        if (firestoreEvaluations) saveLocalEvaluations(firestoreEvaluations);
+        if (firestoreDepartments?.main) saveLocalDepartments(firestoreDepartments.main, firestoreDepartments.secondary || []);
+        if (firestoreConfig?.examsList) saveLocalExamsList(firestoreConfig.examsList);
 
         return {
           rotations: firestoreRotations.map(normalizeRotation).filter(Boolean),
           evaluations: firestoreEvaluations || [],
           departments: firestoreDepartments || getLocalDepartments(),
+          examsList: firestoreConfig?.examsList || getLocalExamsList(),
           source: "firestore",
         };
       }
@@ -127,6 +137,7 @@ export const fetchData = async () => {
     rotations: getLocalRotations().map(normalizeRotation).filter(Boolean),
     evaluations: getLocalEvaluations(),
     departments: getLocalDepartments(),
+    examsList: getLocalExamsList(),
     source: "local",
   };
 };
@@ -203,6 +214,25 @@ export const saveDepartmentsApi = async (main, secondary) => {
       return { success: true, source: "firestore" };
     } catch (err) {
       console.error("Firestore saveDepartments error:", err);
+      return { success: false, source: "local", error: err.message };
+    }
+  }
+
+  return { success: true, source: "local" };
+};
+
+/**
+ * Save the exams list to Firestore.
+ */
+export const saveExamsListApi = async (examsList) => {
+  saveLocalExamsList(examsList);
+
+  if (isFirebaseConfigured) {
+    try {
+      await saveFirestoreConfig({ examsList });
+      return { success: true, source: "firestore" };
+    } catch (err) {
+      console.error("Firestore saveExamsList error:", err);
       return { success: false, source: "local", error: err.message };
     }
   }

@@ -2,7 +2,7 @@ import React from "react";
 import { LineChart } from "lucide-react";
 import InternImage from "../InternImage";
 
-export default function Leaderboard({ evaluations, allRotations, onSelectIntern, searchQuery = "", selectedDept = "", lang }) {
+export default function Leaderboard({ evaluations, allRotations, onSelectIntern, searchQuery = "", selectedDept = "", examsList = [], lang }) {
   const isRtl = lang === "ar";
 
   // 1. Initialize intern data structure
@@ -105,24 +105,9 @@ export default function Leaderboard({ evaluations, allRotations, onSelectIntern,
 
               {/* Exams Summary */}
               {(() => {
-                const EXAMS_LIST = [
-                  "كتاب مقدس",
-                  "عقيده",
-                  "تاريخ كنيسه",
-                  "دفاعيات",
-                  "لاهوت روحي",
-                  "كورس كيف اخدم",
-                  "طقس",
-                  "ابائيات",
-                  "نمو شخصيه",
-                  "لاهوت مقارن",
-                  "خلوة",
-                  "مؤتمر",
-                  "Summer project"
-                ];
                 const grades = intern.exams || {};
-                const totalExams = EXAMS_LIST.length;
-                const passedCount = Object.keys(grades).filter(k => EXAMS_LIST.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
+                const totalExams = examsList.length;
+                const passedCount = Object.keys(grades).filter(k => examsList.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
 
                 return (
                   <div className="mt-2 text-[10px] font-arabic font-medium text-slate-500 bg-slate-50/50 px-2.5 py-1 rounded-xl border border-slate-200/40 flex justify-between w-full" dir={isRtl ? "rtl" : "ltr"}>

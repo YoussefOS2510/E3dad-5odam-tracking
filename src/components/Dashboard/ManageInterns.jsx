@@ -5,21 +5,9 @@ import { translations } from "../../translations";
 import InternImage from "../InternImage";
 import { getGoogleSheetsUrl } from "../../mockData";
 
-const EXAMS_LIST = [
-  "كتاب مقدس",
-  "عقيده",
-  "تاريخ كنيسه",
-  "دفاعيات",
-  "لاهوت روحي",
-  "كورس كيف اخدم",
-  "طقس",
-  "ابائيات",
-  "نمو شخصيه",
-  "لاهوت مقارن",
-  "خلوة",
-  "مؤتمر",
-  "Summer project"
-];
+// examsList is now passed as a prop (examsList) from App.jsx — loaded from Firebase
+// This file no longer hardcodes the exam list.
+
 
 export default function ManageInterns({
   rotations,
@@ -28,9 +16,11 @@ export default function ManageInterns({
   onDeleteIntern,
   onBulkUpdateInterns,
   onUpdateDepartments,
+  onUpdateExamsList,
   lang,
   mainDepartments = [],
-  secondaryDepartments = []
+  secondaryDepartments = [],
+  examsList = []
 }) {
   const t = translations[lang];
   const isRtl = lang === "ar";
@@ -137,7 +127,7 @@ export default function ManageInterns({
         "Intern Photo ID": r.drive_photo_id || ""
       };
       
-      EXAMS_LIST.forEach((exam) => {
+      examsList.forEach((exam) => {
         row[exam] = r.exams && r.exams[exam] !== undefined ? r.exams[exam] : "";
       });
       
@@ -190,7 +180,7 @@ export default function ManageInterns({
           const photoKey = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, "") === "internphotoid" || k.toLowerCase().replace(/[\s_-]/g, "") === "drivephotoid");
 
           const exams = {};
-          EXAMS_LIST.forEach((exam) => {
+          examsList.forEach((exam) => {
             const examVal = row[exam];
             if (examVal !== undefined && examVal !== null && examVal !== "") {
               const numVal = Number(examVal);
@@ -1905,3 +1895,4 @@ export default function ManageInterns({
     </div>
   );
 }
+

@@ -36,6 +36,22 @@ const DEFAULT_SEC_DEPTS = [
 
 const DEFAULT_DEPARTMENTS = { main: DEFAULT_MAIN_DEPTS, secondary: DEFAULT_SEC_DEPTS };
 
+export const DEFAULT_EXAMS_LIST = [
+  "كتاب مقدس",
+  "عقيده",
+  "تاريخ كنيسه",
+  "دفاعيات",
+  "لاهوت روحي",
+  "كورس كيف اخدم",
+  "طقس",
+  "ابائيات",
+  "نمو شخصيه",
+  "لاهوت مقارن",
+  "خلوة",
+  "مؤتمر",
+  "Summer project"
+];
+
 // ─── localStorage helpers (offline cache) ─────────────────────────────────────
 
 export const getLocalRotations = () => {
@@ -74,6 +90,18 @@ export const saveLocalDepartments = (main, secondary) => {
   const updated = { main, secondary };
   localStorage.setItem("departments", JSON.stringify(updated));
   return updated;
+};
+
+export const getLocalExamsList = () => {
+  const stored = localStorage.getItem("examsList");
+  if (stored) {
+    try { return JSON.parse(stored); } catch { /* fall through */ }
+  }
+  return DEFAULT_EXAMS_LIST;
+};
+
+export const saveLocalExamsList = (list) => {
+  localStorage.setItem("examsList", JSON.stringify(list));
 };
 
 export const saveLocalEvaluationBatch = (newEvaluations) => {
@@ -203,7 +231,40 @@ export const saveFirestoreDepartments = async (main, secondary) => {
   }
 };
 
-// ─── Migration / seeding ───────────────────────────────────────────────────────
+/**
+ * Get the app config (examsList, etc.) from Firestore.
+ */
+export const getFirestoreConfig = async () => {
+  if (!isFirebaseConfigured || !db) return null;
+  try {
+    const docRef = doc(db, "appData", "config");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() || null;
+    }
+    return null;
+  } catch (err) {
+    console.error("Firestore read config error:", err);
+    return null;
+  }
+};
+
+/**
+ * Save the app config (examsList, etc.) to Firestore.
+ */
+export const saveFirestoreConfig = async (config) => {
+  if (!isFirebaseConfigured || !db) return false;
+  try {
+    await setDoc(doc(db, "appData", "config"), config);
+    if (config.examsList) saveLocalExamsList(config.examsList);
+    return true;
+  } catch (err) {
+    console.error("Firestore save config error:", err);
+    return false;
+  }
+};
+
+// ─── Migration / seeding ────────────────────────────────────────────────────
 
 /**
  * If Firestore has no data yet, seed it from localStorage (or defaults).
@@ -220,12 +281,31 @@ export const migrateLocalToFirestore = async () => {
       const localRotations = getLocalRotations();
       const localEvaluations = getLocalEvaluations();
       const localDepts = getLocalDepartments();
+      const localExams = getLocalExamsList();
 
       console.log("Seeding Firestore from local data...");
       await saveFirestoreRotations(localRotations);
       await saveFirestoreEvaluations(localEvaluations);
       await saveFirestoreDepartments(localDepts.main, localDepts.secondary);
+      await saveFirestoreConfig({ examsList: localExams });
       console.log("Firestore seeded successfully.");
+    } else {
+      // Firestore has rotations — check if departments and config exist, seed if missing
+      const [firestoreConfig, firestoreDepts] = await Promise.all([
+        getFirestoreConfig(),
+        getFirestoreDepartments(),
+      ]);
+
+      if (!firestoreDepts || !firestoreDepts.main) {
+        const localDepts = getLocalDepartments();
+        console.log("Seeding missing departments to Firestore...");
+        await saveFirestoreDepartments(localDepts.main, localDepts.secondary);
+      }
+
+      if (!firestoreConfig || !firestoreConfig.examsList) {
+        console.log("Seeding missing examsList to Firestore...");
+        await saveFirestoreConfig({ examsList: getLocalExamsList() });
+      }
     }
   } catch (err) {
     console.error("Migration to Firestore failed:", err);

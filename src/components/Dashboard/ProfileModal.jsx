@@ -4,21 +4,7 @@ import { translations } from "../../translations";
 import InternImage from "../InternImage";
 import { calculateInternOverallScore } from "../../utils/scoreCalculator";
 
-const EXAMS_LIST = [
-  "كتاب مقدس",
-  "عقيده",
-  "تاريخ كنيسه",
-  "دفاعيات",
-  "لاهوت روحي",
-  "كورس كيف اخدم",
-  "طقس",
-  "ابائيات",
-  "نمو شخصيه",
-  "لاهوت مقارن",
-  "خلوة",
-  "مؤتمر",
-  "Summer project"
-];
+// examsList is now passed as a prop (examsList) from App.jsx — loaded from Firebase
 
 const EXAM_ICONS = {
   "كتاب مقدس": "📖",
@@ -36,7 +22,7 @@ const EXAM_ICONS = {
   "Summer project": "☀️"
 };
 
-export default function ProfileModal({ internName, evaluations, allRotations, onClose, onDeleteEvaluation, onUpdateIntern, lang }) {
+export default function ProfileModal({ internName, evaluations, allRotations, onClose, onDeleteEvaluation, onUpdateIntern, examsList = [], lang }) {
   const t = translations[lang];
   const isRtl = lang === "ar";
 
@@ -274,8 +260,8 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
                 {/* Overall Exams Progress Overview */}
                 {(() => {
                   const grades = rotationInfo.exams || {};
-                  const totalExams = EXAMS_LIST.length;
-                  const passedCount = Object.keys(grades).filter(k => EXAMS_LIST.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
+                  const totalExams = examsList.length;
+                  const passedCount = Object.keys(grades).filter(k => examsList.includes(k) && grades[k] !== "" && Number(grades[k]) >= 70).length;
                   const percentPassed = totalExams > 0 ? Math.round((passedCount / totalExams) * 100) : 0;
                   
                   return (
@@ -306,7 +292,7 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
 
                 {/* Exams Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {EXAMS_LIST.map((exam) => {
+                  {examsList.map((exam) => {
                     const grades = rotationInfo.exams || {};
                     const grade = grades[exam];
                     const isExamEditing = editingExam === exam;
@@ -648,3 +634,4 @@ export default function ProfileModal({ internName, evaluations, allRotations, on
     </div>
   );
 }
+

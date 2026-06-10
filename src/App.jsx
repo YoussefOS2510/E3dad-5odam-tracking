@@ -8,9 +8,9 @@ import Leaderboard from "./components/Dashboard/Leaderboard";
 import ProfileModal from "./components/Dashboard/ProfileModal";
 import ManageInterns from "./components/Dashboard/ManageInterns";
 
-import { fetchData, submitEvaluations, saveRotationsApi, saveDepartmentsApi, saveLocalDepartments } from "./api";
+import { fetchData, submitEvaluations, saveRotationsApi, saveDepartmentsApi, saveLocalDepartments, saveExamsListApi } from "./api";
 import { isFirebaseConfigured } from "./firebase";
-import { saveFirestoreEvaluations } from "./mockData";
+import { saveFirestoreEvaluations, DEFAULT_EXAMS_LIST } from "./mockData";
 import { translations } from "./translations";
 
 const FALLBACK_MAIN_DEPTS = [
@@ -53,6 +53,7 @@ export default function App() {
   const [isReadOnlyAdmin, setIsReadOnlyAdmin] = useState(false);
   const [mainDepartments, setMainDepartments] = useState(FALLBACK_MAIN_DEPTS);
   const [secondaryDepartments, setSecondaryDepartments] = useState(FALLBACK_SEC_DEPTS);
+  const [examsList, setExamsList] = useState(DEFAULT_EXAMS_LIST);
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,6 +99,10 @@ export default function App() {
     } else {
       setMainDepartments(FALLBACK_MAIN_DEPTS);
       setSecondaryDepartments(FALLBACK_SEC_DEPTS);
+    }
+
+    if (res.examsList && res.examsList.length > 0) {
+      setExamsList(res.examsList);
     }
     
     setRotations(fetchedRotations);
@@ -380,12 +385,17 @@ export default function App() {
     return true;
   });
 
-  // Extract unique departments from rotations for filter dropdown
-  const uniqueDepartments = Array.from(
-    new Set(
-      rotations.flatMap((r) => [r.main_department, r.secondary_department].filter(Boolean))
-    )
+  // Build a unified departments list: Firestore master list + any extra found in rotations
+  const allDepartments = Array.from(
+    new Set([
+      ...mainDepartments,
+      ...secondaryDepartments,
+      ...rotations.flatMap((r) => [r.main_department, r.secondary_department].filter(Boolean))
+    ])
   ).sort((a, b) => a.localeCompare(b, lang));
+
+  // For the filter bar, also include only departments that appear in evaluations
+  const uniqueDepartments = allDepartments;
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -470,6 +480,12 @@ export default function App() {
     return true;
   };
 
+  const handleUpdateExamsList = async (newExamsList) => {
+    setExamsList(newExamsList);
+    await saveExamsListApi(newExamsList);
+    return true;
+  };
+
   const isRtl = lang === "ar";
 
   return (
@@ -531,6 +547,7 @@ export default function App() {
           {wizardStep === "gatekeeper" && (
             <GatekeeperStep
               rotations={rotations}
+              allDepartments={allDepartments}
               onStartSession={handleStartSession}
               lang={lang}
             />
@@ -653,6 +670,7 @@ export default function App() {
             onSelectIntern={setSelectedProfileIntern}
             searchQuery={searchQuery}
             selectedDept={selectedDept}
+            examsList={examsList}
             lang={lang}
           />
 
@@ -665,6 +683,7 @@ export default function App() {
               onClose={() => setSelectedProfileIntern(null)}
               onDeleteEvaluation={isReadOnlyAdmin ? null : handleDeleteEvaluation}
               onUpdateIntern={isReadOnlyAdmin ? null : handleUpdateIntern}
+              examsList={examsList}
               lang={lang}
             />
           )}
@@ -680,9 +699,11 @@ export default function App() {
           onDeleteIntern={handleDeleteIntern}
           onBulkUpdateInterns={handleBulkUpdateInterns}
           onUpdateDepartments={handleUpdateDepartments}
+          onUpdateExamsList={handleUpdateExamsList}
           lang={lang}
           mainDepartments={mainDepartments}
           secondaryDepartments={secondaryDepartments}
+          examsList={examsList}
         />
       )}
 
