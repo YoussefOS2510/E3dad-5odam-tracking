@@ -128,10 +128,12 @@ export default function EvaluationCard({
             );
           })}
         </div>
-        <div className="flex justify-between text-[10px] text-slate-400 px-1" dir={isRtl ? "rtl" : "ltr"}>
-          <span>{t.excellent} (5)</span>
-          <span>{t.average} (3)</span>
-          <span>{t.weak} (1)</span>
+        <div className="flex justify-between gap-1.5 text-[9px] md:text-[10px] text-slate-400 px-0.5" dir={isRtl ? "rtl" : "ltr"}>
+          {[1, 2, 3, 4, 5].map((score) => (
+            <span key={score} className="flex-1 text-center font-arabic leading-tight font-medium">
+              {t[`rating${score}`]}
+            </span>
+          ))}
         </div>
       </div>
     );

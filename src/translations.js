@@ -50,6 +50,11 @@ export const translations = {
     excellent: "ممتاز",
     average: "مقبول",
     weak: "ضعيف",
+    rating1: "ضعيف",
+    rating2: "مقبول",
+    rating3: "جيد",
+    rating4: "جيد جداً",
+    rating5: "ممتاز",
 
     // Submit Review
     reviewTitle: "مراجعة التقييمات وتأكيد الإرسال",
@@ -228,6 +233,11 @@ export const translations = {
     excellent: "Excellent",
     average: "Average",
     weak: "Weak",
+    rating1: "Weak",
+    rating2: "Acceptable",
+    rating3: "Good",
+    rating4: "Very Good",
+    rating5: "Excellent",
 
     // Submit Review
     reviewTitle: "Review & Confirm Submission",
