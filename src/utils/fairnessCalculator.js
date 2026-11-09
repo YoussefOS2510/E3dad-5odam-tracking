@@ -163,29 +163,77 @@ export const generateComprehensiveReport = ({
           name: dept,
           compositeSum: 0,
           attendanceSum: 0,
-          count: 0
+          commitmentSum: 0,
+          appearanceSum: 0,
+          lessonSum: 0,
+          audienceSum: 0,
+          count: 0,
+          evaluators: [],
+          strengths: [],
+          improvements: [],
+          notes: [],
+          evaluations: []
         };
       }
       internDeptsMap[dept].compositeSum += compositeScore;
       internDeptsMap[dept].attendanceSum += (ev.attendance || 0);
+      internDeptsMap[dept].commitmentSum += (ev.commitment_time || 0);
+      internDeptsMap[dept].appearanceSum += (ev.church_spirit_appearance || 0);
+      internDeptsMap[dept].lessonSum += (ev.lesson_preparation || 0);
+      internDeptsMap[dept].audienceSum += (ev.target_audience_handling || 0);
       internDeptsMap[dept].count += 1;
+      if (ev.evaluator_name && !internDeptsMap[dept].evaluators.includes(ev.evaluator_name)) {
+        internDeptsMap[dept].evaluators.push(ev.evaluator_name);
+      }
+      if (ev.strengths) internDeptsMap[dept].strengths.push(ev.strengths);
+      if (ev.improvements) internDeptsMap[dept].improvements.push(ev.improvements);
+      if (ev.notes) internDeptsMap[dept].notes.push(ev.notes);
+      internDeptsMap[dept].evaluations.push(ev);
     });
 
     const evaluatedDeptKeys = Object.keys(internDeptsMap);
     let rawPracticalAvgSum = 0;
     let normalizedPracticalAvgSum = 0;
 
-    evaluatedDeptKeys.forEach((dKey) => {
+    const departmentsHistory = evaluatedDeptKeys.map((dKey) => {
       const deptData = internDeptsMap[dKey];
-      const deptRawAvg = deptData.compositeSum / deptData.count;
+      const count = deptData.count;
+      const deptRawAvg = count > 0 ? deptData.compositeSum / count : 0;
       rawPracticalAvgSum += deptRawAvg;
 
       // Fairness calibration:
       // Adjusted = Raw + (GlobalCohortMean - DepartmentMean)
       const deptBenchmark = benchmarks[dKey] || { meanScore: globalMean };
       const adjustment = globalMean - deptBenchmark.meanScore;
-      const normalizedScore = Math.max(1, Math.min(5, deptRawAvg + adjustment));
+      const normalizedScore = count > 0 ? Math.max(1, Math.min(5, deptRawAvg + adjustment)) : 0;
       normalizedPracticalAvgSum += normalizedScore;
+
+      return {
+        name: dKey,
+        evalCount: count,
+        rawScore: Number(deptRawAvg.toFixed(2)),
+        rawScorePct: Math.round((deptRawAvg / 5) * 100),
+        normalizedScore: Number(normalizedScore.toFixed(2)),
+        normalizedScorePct: Math.round((normalizedScore / 5) * 100),
+        effectiveScore: normalizePractical ? Number(normalizedScore.toFixed(2)) : Number(deptRawAvg.toFixed(2)),
+        effectiveScorePct: normalizePractical ? Math.round((normalizedScore / 5) * 100) : Math.round((deptRawAvg / 5) * 100),
+        avgCommitment: Number((deptData.commitmentSum / count).toFixed(1)),
+        avgAppearance: Number((deptData.appearanceSum / count).toFixed(1)),
+        avgLesson: Number((deptData.lessonSum / count).toFixed(1)),
+        avgAudience: Number((deptData.audienceSum / count).toFixed(1)),
+        totalAttendance: deptData.attendanceSum,
+        avgAttendance: Number((deptData.attendanceSum / count).toFixed(1)),
+        evaluators: deptData.evaluators,
+        strengths: deptData.strengths,
+        improvements: deptData.improvements,
+        notes: deptData.notes,
+        evaluations: deptData.evaluations
+      };
+    });
+
+    const departmentsMap = {};
+    departmentsHistory.forEach((dh) => {
+      departmentsMap[dh.name] = dh;
     });
 
     const hasPracticalData = evaluatedDeptKeys.length > 0;
@@ -292,6 +340,9 @@ export const generateComprehensiveReport = ({
       // Practical
       evalCount: internEvals.length,
       evaluatedDeptsCount: evaluatedDeptKeys.length,
+      departmentsList: evaluatedDeptKeys,
+      departmentsHistory,
+      departmentsMap,
       rawPracticalScore: Number(rawPracticalScore.toFixed(2)),
       rawPracticalScorePct: Number(rawPracticalScorePct.toFixed(1)),
       normalizedPracticalScore: Number(normalizedPracticalScore.toFixed(2)),
@@ -323,10 +374,15 @@ export const generateComprehensiveReport = ({
     ? evaluatedStudents.reduce((acc, s) => acc + s.compositeTotalScore, 0) / evaluatedStudents.length
     : 0;
 
+  const allEvaluatedDepts = Array.from(
+    new Set(evaluations.map((ev) => ev.department).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
   return {
     students,
     benchmarks,
     globalMean,
+    allEvaluatedDepts,
     cohortSummary: {
       totalStudents,
       readyCount,

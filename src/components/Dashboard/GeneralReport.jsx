@@ -13,9 +13,17 @@ import {
   ChevronDown, 
   ChevronUp, 
   ArrowUpDown, 
-  ExternalLink,
-  Award,
-  Users
+  ExternalLink, 
+  Award, 
+  Users, 
+  Grid3X3, 
+  ListFilter, 
+  Maximize2, 
+  Minimize2,
+  Clock,
+  Sparkles,
+  BookOpen,
+  Calendar
 } from "lucide-react";
 import InternImage from "../InternImage";
 import { generateComprehensiveReport, DEFAULT_WEIGHTS } from "../../utils/fairnessCalculator";
@@ -36,6 +44,12 @@ export default function GeneralReport({
   const [sortBy, setSortBy] = useState("compositeTotalScore"); // compositeTotalScore | practicalScorePct | academicScorePct | attendancePct | name
   const [sortOrder, setSortOrder] = useState("desc"); // "asc" | "desc"
   
+  // View mode: "detailed" (with expandable drawers) vs "matrix" (all-departments side-by-side grid)
+  const [viewMode, setViewMode] = useState("detailed"); 
+
+  // Expandable row state
+  const [expandedStudents, setExpandedStudents] = useState(new Set());
+
   // Fairness configuration
   const [normalizePractical, setNormalizePractical] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
@@ -53,24 +67,31 @@ export default function GeneralReport({
     });
   }, [rotations, evaluations, examsList, weights, normalizePractical]);
 
-  const { students, benchmarks, globalMean, cohortSummary } = reportData;
+  const { students, benchmarks, globalMean, cohortSummary, allEvaluatedDepts } = reportData;
 
-  // Extract unique departments for filter dropdown
+  // Extract all unique departments across rotations AND evaluations
   const departmentOptions = useMemo(() => {
     const set = new Set();
     rotations.forEach((r) => {
       if (r.main_department) set.add(r.main_department);
       if (r.secondary_department) set.add(r.secondary_department);
     });
+    evaluations.forEach((ev) => {
+      if (ev.department) set.add(ev.department);
+    });
     return Array.from(set).sort((a, b) => a.localeCompare(b, lang));
-  }, [rotations, lang]);
+  }, [rotations, evaluations, lang]);
 
   // Filter and sort students
   const filteredStudents = useMemo(() => {
     return students
       .filter((s) => {
         const matchesSearch = !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesDept = !selectedDept || s.mainDept === selectedDept || s.secondaryDept === selectedDept;
+        // Match department if student was in it as main, secondary, or EVER served in it
+        const matchesDept = !selectedDept || 
+          s.mainDept === selectedDept || 
+          s.secondaryDept === selectedDept || 
+          (s.departmentsList && s.departmentsList.includes(selectedDept));
         const matchesTier = selectedTier === "all" || s.readinessTier === selectedTier;
         return matchesSearch && matchesDept && matchesTier;
       })
@@ -95,27 +116,63 @@ export default function GeneralReport({
     }
   };
 
-  // Export to Excel (.xlsx)
+  // Toggle single student drawer
+  const toggleStudentExpand = (name) => {
+    setExpandedStudents((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
+  // Expand / collapse all
+  const toggleExpandAll = () => {
+    if (expandedStudents.size === filteredStudents.length) {
+      setExpandedStudents(new Set());
+    } else {
+      setExpandedStudents(new Set(filteredStudents.map((s) => s.name)));
+    }
+  };
+
+  // Export to Excel (.xlsx) across all departments and details
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Master Report
-    const rows = filteredStudents.map((s, idx) => {
+    // Sheet 1: Master Comprehensive Report with Every Department Column
+    const rowsMaster = filteredStudents.map((s, idx) => {
       const row = {
         "م": idx + 1,
         "اسم الطالب": s.name,
-        "الخدمة الأساسية": s.mainDept,
-        "الخدمة الفرعية": s.secondaryDept,
-        "الحالة": s.readinessLabel,
+        "الخدمة الأساسية الحالية": s.mainDept,
+        "الخدمة الفرعية الحالية": s.secondaryDept,
+        "جميع الخدمات التي خدم بها": (s.departmentsList || []).join(" | "),
+        "عدد الخدمات التي خدم بها": (s.departmentsList || []).length,
+        "الحالة والجاهزية": s.readinessLabel,
         "المجموع النهائي الموزون (%)": s.compositeTotalScore,
         "المتوسط الأكاديمي (%)": s.academicScorePct,
         "الامتحانات المكتملة": `${s.passedExamsCount} / ${s.totalExamsCount}`,
-        "التقييم العملي المعاير (%)": s.normalizedPracticalScorePct,
-        "التقييم العملي الخام (من 5)": s.rawPracticalScore,
-        "عدد التقييمات المسجلة": s.evalCount,
+        "متوسط التقييم العملي المعاير (%)": s.normalizedPracticalScorePct,
+        "متوسط التقييم العملي الخام (من 5)": s.rawPracticalScore,
+        "إجمالي عدد التقييمات": s.evalCount,
         "نسبة الحضور والالتزام (%)": s.attendancePct,
         "إجمالي أيام الحضور": s.totalAttendance
       };
+
+      // Add a dedicated column for EVERY department in the system!
+      (allEvaluatedDepts || []).forEach((dept) => {
+        const dData = s.departmentsMap && s.departmentsMap[dept];
+        if (dData) {
+          row[`خدمة: ${dept} (الدرجة)`] = `${dData.rawScore} / 5 (${dData.effectiveScorePct}%)`;
+          row[`خدمة: ${dept} (الحضور)`] = `${dData.totalAttendance} يوم`;
+        } else {
+          row[`خدمة: ${dept} (الدرجة)`] = "لم يخدم بها";
+          row[`خدمة: ${dept} (الحضور)`] = "—";
+        }
+      });
 
       // Add individual exams as columns
       examsList.forEach((exam) => {
@@ -125,10 +182,43 @@ export default function GeneralReport({
       return row;
     });
 
-    const wsStudents = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, wsStudents, isRtl ? "التقرير العام للطلاب" : "General Report");
+    const wsMaster = XLSX.utils.json_to_sheet(rowsMaster);
+    XLSX.utils.book_append_sheet(wb, wsMaster, isRtl ? "التقرير الشامل العام" : "Master Report");
 
-    // Sheet 2: Department Calibration Benchmarks
+    // Sheet 2: Detailed Rotations Log (Every department review ever entered)
+    const rowsDetailed = [];
+    filteredStudents.forEach((s) => {
+      (s.departmentsHistory || []).forEach((dh) => {
+        dh.evaluations.forEach((ev, evIdx) => {
+          rowsDetailed.push({
+            "اسم الطالب": s.name,
+            "الخدمة": dh.name,
+            "رقم التقييم بالخدمة": evIdx + 1,
+            "الخادم المقيّم": ev.evaluator_name || "غير محدد",
+            "التاريخ": ev.timestamp ? new Date(ev.timestamp).toLocaleDateString("ar-EG") : "—",
+            "أيام الحضور": ev.attendance || 0,
+            "الالتزام بالوقت (من 5)": ev.commitment_time || 0,
+            "المظهر والروح الكنسية (من 5)": ev.church_spirit_appearance || 0,
+            "تحضير الدرس / المهام (من 5)": ev.lesson_preparation || 0,
+            "التعامل مع المخدومين (من 5)": ev.target_audience_handling || 0,
+            "متوسط التقييم (من 5)": (
+              ((ev.commitment_time || 0) +
+                (ev.church_spirit_appearance || 0) +
+                (ev.lesson_preparation || 0) +
+                (ev.target_audience_handling || 0)) / 4
+            ).toFixed(2),
+            "نقاط القوة": ev.strengths || "—",
+            "نقاط تحتاج تحسين": ev.improvements || "—",
+            "ملاحظات المشرف": ev.notes || "—"
+          });
+        });
+      });
+    });
+
+    const wsDetailed = XLSX.utils.json_to_sheet(rowsDetailed);
+    XLSX.utils.book_append_sheet(wb, wsDetailed, isRtl ? "سجل الخدمات التفصيلي" : "All Departments Log");
+
+    // Sheet 3: Department Calibration Benchmarks
     const deptRows = Object.values(benchmarks).map((b) => ({
       "الخدمة": b.name,
       "عدد التقييمات": b.evalCount,
@@ -142,7 +232,7 @@ export default function GeneralReport({
     XLSX.utils.book_append_sheet(wb, wsDepts, isRtl ? "معايرة الخدمات" : "Department Benchmarks");
 
     // Save File
-    const fileName = `E3dad_General_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const fileName = `E3dad_Full_Departments_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -156,15 +246,15 @@ export default function GeneralReport({
       
       {/* Printable Official Header (Only visible when printing) */}
       <div className="hidden print:block text-center font-arabic border-b-2 border-slate-800 pb-4 mb-6" dir="rtl">
-        <h1 className="text-xl font-black text-slate-900">نظام تقييم إعداد خدام - التقرير الختامي الشامل</h1>
+        <h1 className="text-xl font-black text-slate-900">نظام تقييم إعداد خدام - التقرير الشامل التراكمي لجميع الخدمات</h1>
         <h2 className="text-sm font-bold text-slate-700 mt-1">
-          {selectedDept ? `كشف تقييم طلاب خدمة: ${selectedDept}` : "كشف تقييم ومعدلات أداء الدفعة لجميع الخدمات"}
+          {selectedDept ? `تقرير تفصيلي لطلاب خدمة: ${selectedDept}` : "كشف تقييم ومعدلات أداء الدفعة عبر كافة الخدمات والامتحانات"}
         </h2>
         <div className="flex justify-between items-center text-xs text-slate-600 mt-3 border-t border-slate-200 pt-2">
           <span>تاريخ التقرير: {new Date().toLocaleDateString("ar-EG")}</span>
           <span>عدد الطلاب المعروضين: {filteredStudents.length}</span>
           <span>نسبة الجاهزية للخدمة: {cohortSummary.readyRate}%</span>
-          <span>المتوسط التراكمي: {cohortSummary.cohortAvgScore}%</span>
+          <span>المتوسط التراكمي العام: {cohortSummary.cohortAvgScore}%</span>
         </div>
       </div>
 
@@ -179,18 +269,45 @@ export default function GeneralReport({
             </span>
             <div>
               <h2 className="text-xl font-bold font-arabic text-slate-800">
-                {isRtl ? "التقرير العام الشامل والمعاير للطلاب" : "Fair Cross-Department General Report"}
+                {isRtl ? "التقرير العام التراكمي الشامل لكافة الخدمات" : "Complete Cross-Department Evaluation Report"}
               </h2>
               <p className="text-xs text-slate-400 font-light mt-0.5">
                 {isRtl 
-                  ? "تقرير موحد ومعاير إحصائياً لتحقيق العدالة بين الطلاب في مختلف الخدمات والامتحانات"
-                  : "Standardized holistic report ensuring fairness across departments and evaluators"}
+                  ? "تقرير تفصيلي موحد يغطي كل خدمة خدم بها كل طالب، مع تحليل الأداء الأكاديمي والعملي والحضور"
+                  : "Comprehensive student performance report across every department, exam, and rotation"}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* View mode toggle */}
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 font-arabic text-xs">
+            <button
+              onClick={() => setViewMode("detailed")}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                viewMode === "detailed"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>{isRtl ? "عرض السجل التفصيلي" : "Detailed Log"}</span>
+            </button>
+
+            <button
+              onClick={() => setViewMode("matrix")}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                viewMode === "matrix"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              <span>{isRtl ? "مصفوفة جميع الخدمات" : "All-Depts Matrix"}</span>
+            </button>
+          </div>
+
           {/* Fairness calibration toggle */}
           <button
             onClick={() => setNormalizePractical(!normalizePractical)}
@@ -209,7 +326,7 @@ export default function GeneralReport({
             </span>
           </button>
 
-          {/* Department Benchmarks Trigger */}
+          {/* Evaluator Audit */}
           <button
             onClick={() => setShowBenchmarks(!showBenchmarks)}
             className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-arabic font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
@@ -234,7 +351,7 @@ export default function GeneralReport({
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-arabic font-bold transition-all shadow-md shadow-emerald-600/10 flex items-center gap-1.5 cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>{isRtl ? "تصدير Excel (.xlsx)" : "Export Excel"}</span>
+            <span>{isRtl ? "تصدير Excel الشامل (.xlsx)" : "Export Full Excel"}</span>
           </button>
 
           {/* Print */}
@@ -467,7 +584,7 @@ export default function GeneralReport({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          5. Search, Filter & View Controls
+          5. Search, Filter & Expand Controls
          ───────────────────────────────────────────────────────────── */}
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3 font-arabic print:hidden">
         {/* Search Input */}
@@ -492,7 +609,7 @@ export default function GeneralReport({
             onChange={(e) => setSelectedDept(e.target.value)}
             className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
-            <option value="">{isRtl ? "جميع الخدمات" : "All Departments"}</option>
+            <option value="">{isRtl ? "جميع الخدمات (خدم بها الطالب)" : "All Departments"}</option>
             {departmentOptions.map((dept) => (
               <option key={dept} value={dept}>{dept}</option>
             ))}
@@ -511,6 +628,26 @@ export default function GeneralReport({
             <option value="at_risk">{isRtl ? "🔴 تحت الملاحظة" : "At Risk"}</option>
           </select>
 
+          {/* Expand/Collapse All */}
+          {viewMode === "detailed" && (
+            <button
+              onClick={toggleExpandAll}
+              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              {expandedStudents.size === filteredStudents.length ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{isRtl ? "طي تفاصيل الخدمات" : "Collapse All"}</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{isRtl ? "عرض تفاصيل كل الخدمات للجميع" : "Expand All"}</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* Reset Filters */}
           {(searchQuery || selectedDept || selectedTier !== "all") && (
             <button
@@ -528,214 +665,526 @@ export default function GeneralReport({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          6. Master Cross-Department Comprehensive Table
+          6A. VIEW MODE 1: Detailed Table with Expandable Full-Department Drawers
          ───────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden font-arabic">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <th className="py-4 px-4 text-center w-12">#</th>
-                <th 
-                  onClick={() => handleSort("name")}
-                  className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{isRtl ? "بيانات الطالب والخدمة" : "Student & Department"}</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th 
-                  onClick={() => handleSort("academicScorePct")}
-                  className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{isRtl ? "الامتحانات (40%)" : "Academic (40%)"}</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th 
-                  onClick={() => handleSort("practicalScorePct")}
-                  className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{isRtl ? "التقييم العملي (40%)" : "Practical (40%)"}</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th 
-                  onClick={() => handleSort("attendancePct")}
-                  className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{isRtl ? "الحضور (20%)" : "Attendance (20%)"}</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th 
-                  onClick={() => handleSort("compositeTotalScore")}
-                  className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors text-center"
-                >
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span>{isRtl ? "المجموع النهائي الموزون" : "Composite Total"}</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th className="py-4 px-4 text-center">{isRtl ? "الحالة والجاهزية" : "Readiness Status"}</th>
-                <th className="py-4 px-4 text-center print:hidden">{isRtl ? "إجراء" : "Action"}</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-400">
-                    <Info className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <span>{isRtl ? "لا توجد نتائج مطابقة لخيارات البحث أو الفلترة" : "No matching student records found."}</span>
-                  </td>
+      {viewMode === "detailed" && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden font-arabic">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-4 px-3 text-center w-10">#</th>
+                  <th 
+                    onClick={() => handleSort("name")}
+                    className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{isRtl ? "الطالب والخدمات التي خدم بها" : "Student & Departments"}</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort("academicScorePct")}
+                    className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{isRtl ? "الامتحانات (40%)" : "Academic (40%)"}</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort("practicalScorePct")}
+                    className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{isRtl ? "متوسط كل الخدمات (40%)" : "All Services Avg (40%)"}</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort("attendancePct")}
+                    className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{isRtl ? "الحضور (20%)" : "Attendance (20%)"}</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort("compositeTotalScore")}
+                    className="py-4 px-4 cursor-pointer hover:text-indigo-600 transition-colors text-center"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>{isRtl ? "المجموع التراكمي الموزون" : "Composite Total"}</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th className="py-4 px-4 text-center">{isRtl ? "الحالة والجاهزية" : "Readiness Status"}</th>
+                  <th className="py-4 px-4 text-center print:hidden">{isRtl ? "التفاصيل" : "Details"}</th>
                 </tr>
-              ) : (
-                filteredStudents.map((s, idx) => {
-                  return (
-                    <tr 
-                      key={s.name}
-                      className="hover:bg-indigo-50/20 transition-colors duration-150 group"
-                    >
-                      {/* Rank Index */}
-                      <td className="py-4 px-4 text-center font-mono font-bold text-slate-400 text-xs">
-                        {idx + 1}
-                      </td>
+              </thead>
 
-                      {/* Student Info */}
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="py-12 text-center text-slate-400">
+                      <Info className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <span>{isRtl ? "لا توجد نتائج مطابقة لخيارات البحث أو الفلترة" : "No matching student records found."}</span>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((s, idx) => {
+                    const isExpanded = expandedStudents.has(s.name);
+                    const deptsList = s.departmentsHistory || [];
+
+                    return (
+                      <React.Fragment key={s.name}>
+                        <tr 
+                          className={`hover:bg-indigo-50/20 transition-colors duration-150 group ${
+                            isExpanded ? "bg-indigo-50/30" : ""
+                          }`}
+                        >
+                          {/* Rank Index */}
+                          <td className="py-4 px-3 text-center font-mono font-bold text-slate-400 text-xs">
+                            {idx + 1}
+                          </td>
+
+                          {/* Student Info & Departments Badges */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-start gap-3">
+                              <InternImage
+                                photoId={s.photoId}
+                                name={s.name}
+                                className="w-10 h-10 rounded-full border border-slate-200 object-cover flex-shrink-0 mt-0.5"
+                              />
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">
+                                    {s.name}
+                                  </span>
+                                </div>
+
+                                {/* Badges of ALL departments served */}
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {deptsList.length === 0 ? (
+                                    <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                                      {isRtl ? "لم يُقيّم بعد في أي خدمة" : "No evaluations recorded"}
+                                    </span>
+                                  ) : (
+                                    deptsList.map((dh) => (
+                                      <span 
+                                        key={dh.name}
+                                        className="inline-flex items-center gap-1 text-[10px] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg text-slate-700 font-medium"
+                                        title={`${dh.evalCount} تقييمات | متوسط: ${dh.rawScore} من 5 | حضور: ${dh.totalAttendance} يوم`}
+                                      >
+                                        <span>{dh.name}</span>
+                                        <span className="font-bold text-indigo-600 font-mono">
+                                          {dh.rawScore}★
+                                        </span>
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Academic / Exams */}
+                          <td className="py-4 px-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-slate-800 text-xs">
+                                  {s.academicScorePct}%
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {s.passedExamsCount} / {s.totalExamsCount}
+                                </span>
+                              </div>
+                              <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${s.academicScorePct >= 70 ? "bg-indigo-600" : "bg-amber-500"}`}
+                                  style={{ width: `${s.examCompletionRate}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Practical Service (Raw + Normalized) */}
+                          <td className="py-4 px-4">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-slate-800 text-xs">
+                                  {s.practicalScorePct}%
+                                </span>
+                                {normalizePractical && (
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-mono" title="الدرجة بعد معايرة شدة المشرف">
+                                    معاير
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <span>الخام: {s.rawPracticalScore} / 5</span>
+                                <span>({deptsList.length} خدمات)</span>
+                                {s.isLowSample && (
+                                  <span className="text-amber-500 font-bold" title="تقييم واحد فقط مسجل!">⚠️</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Attendance */}
+                          <td className="py-4 px-4">
+                            <div className="space-y-0.5">
+                              <span className="font-mono font-bold text-slate-800 text-xs">
+                                {s.attendancePct}%
+                              </span>
+                              <span className="text-[10px] text-slate-400 block">
+                                {s.totalAttendance} يوم حضور
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Composite Total */}
+                          <td className="py-4 px-4 text-center">
+                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-xl font-mono font-black text-sm border shadow-sm ${
+                              s.compositeTotalScore >= 75
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : s.compositeTotalScore >= 60
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            }`}>
+                              {s.compositeTotalScore}%
+                            </span>
+                          </td>
+
+                          {/* Readiness Classification Badge */}
+                          <td className="py-4 px-4 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                              s.readinessTier === "ready"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : s.readinessTier === "incomplete_exams"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : s.readinessTier === "needs_practical"
+                                ? "bg-orange-50 text-orange-700 border-orange-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            }`}>
+                              {s.readinessTier === "ready" && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                              {s.readinessTier === "incomplete_exams" && <AlertTriangle className="w-3 h-3 text-amber-600" />}
+                              <span>{s.readinessLabel}</span>
+                            </span>
+                          </td>
+
+                          {/* Action: Expand & Open Profile */}
+                          <td className="py-4 px-4 text-center print:hidden">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => toggleStudentExpand(s.name)}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
+                                  isExpanded
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                    : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
+                                }`}
+                                title={isRtl ? "عرض تفاصيل كل خدمة خدم بها الطالب" : "Toggle all department details"}
+                              >
+                                <span>{deptsList.length} خدمات</span>
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+
+                              <button
+                                onClick={() => onSelectIntern && onSelectIntern(s.name)}
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
+                                title={isRtl ? "عرض بطاقة الطالب الفردية وتعديل الامتحانات" : "View Dossier"}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* ─────────────────────────────────────────────────────────────
+                            Expanded Full-Department Breakdown Drawer
+                           ───────────────────────────────────────────────────────────── */}
+                        {(isExpanded || window.matchMedia?.("print")?.matches) && (
+                          <tr className="bg-slate-50/80 border-b-2 border-indigo-100">
+                            <td colSpan="8" className="p-4 md:p-6">
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <BookOpen className="w-4 h-4 text-indigo-600" />
+                                    <h4 className="font-bold text-slate-800 text-xs">
+                                      {isRtl 
+                                        ? `سجل تقييمات الطالب في جميع الخدمات التي شارك بها (${deptsList.length} خدمات مسجلة)`
+                                        : `Evaluations across all participating departments (${deptsList.length} recorded)`}
+                                    </h4>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400">
+                                    {isRtl ? "درجات الخدمات الأربعة (الوقت، المظهر، الدرس، المخدومين)" : "4 Core criteria scores"}
+                                  </span>
+                                </div>
+
+                                {deptsList.length === 0 ? (
+                                  <div className="text-center py-4 text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+                                    {isRtl ? "لا توجد تقييمات عملية مسجلة لهذا الطالب حتى الآن." : "No practical service evaluations recorded yet."}
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {deptsList.map((dh) => (
+                                      <div 
+                                        key={dh.name}
+                                        className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-3"
+                                      >
+                                        {/* Dept Header */}
+                                        <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                                          <div>
+                                            <span className="font-bold text-slate-800 text-xs block">
+                                              {dh.name}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                              <span>{dh.evalCount} تقييمات</span>
+                                              {dh.evaluators.length > 0 && (
+                                                <span>• بواسطة: {dh.evaluators.join(", ")}</span>
+                                              )}
+                                            </span>
+                                          </div>
+
+                                          <div className="text-left flex-shrink-0">
+                                            <span className="text-xs font-black font-mono text-indigo-600 block">
+                                              {dh.rawScore} / 5
+                                            </span>
+                                            <span className="text-[9px] text-emerald-600 font-bold font-mono">
+                                              {dh.effectiveScorePct}%
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* 4 Core Criteria Breakdown */}
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                          <div className="space-y-0.5">
+                                            <span className="text-slate-400 block text-[9px]">⏱️ الالتزام بالوقت</span>
+                                            <span className="font-bold font-mono text-slate-700">{dh.avgCommitment} / 5</span>
+                                          </div>
+                                          <div className="space-y-0.5">
+                                            <span className="text-slate-400 block text-[9px]">⛪ المظهر الكنسي</span>
+                                            <span className="font-bold font-mono text-slate-700">{dh.avgAppearance} / 5</span>
+                                          </div>
+                                          <div className="space-y-0.5">
+                                            <span className="text-slate-400 block text-[9px]">📖 تحضير الدرس</span>
+                                            <span className="font-bold font-mono text-slate-700">{dh.avgLesson} / 5</span>
+                                          </div>
+                                          <div className="space-y-0.5">
+                                            <span className="text-slate-400 block text-[9px]">👥 مع المخدومين</span>
+                                            <span className="font-bold font-mono text-slate-700">{dh.avgAudience} / 5</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Attendance in this department */}
+                                        <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                                          <span className="flex items-center gap-1">
+                                            <Calendar className="w-3 h-3 text-slate-400" />
+                                            <span>حضور هذه الخدمة:</span>
+                                          </span>
+                                          <span className="font-bold font-mono text-slate-700">
+                                            {dh.totalAttendance} يوم ({dh.avgAttendance} يوم/جلسة)
+                                          </span>
+                                        </div>
+
+                                        {/* Feedback & Supervisor Notes */}
+                                        {(dh.strengths.length > 0 || dh.improvements.length > 0 || dh.notes.length > 0) && (
+                                          <div className="text-[10px] space-y-1 pt-2 border-t border-slate-100 bg-amber-50/20 -mx-1 p-2 rounded-xl">
+                                            {dh.strengths.length > 0 && (
+                                              <div className="text-emerald-800">
+                                                <span className="font-bold">🌟 نقاط القوة: </span>
+                                                <span>{dh.strengths.join(" — ")}</span>
+                                              </div>
+                                            )}
+                                            {dh.improvements.length > 0 && (
+                                              <div className="text-amber-800">
+                                                <span className="font-bold">💡 للتحسين: </span>
+                                                <span>{dh.improvements.join(" — ")}</span>
+                                              </div>
+                                            )}
+                                            {dh.notes.length > 0 && (
+                                              <div className="text-slate-600">
+                                                <span className="font-bold">📝 ملاحظات: </span>
+                                                <span>{dh.notes.join(" — ")}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Exams mini-summary */}
+                                <div className="bg-white p-3 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-2 text-[10px]">
+                                  <span className="font-bold text-slate-700">📋 الامتحانات المكتملة ({s.passedExamsCount} / {s.totalExamsCount}):</span>
+                                  {examsList.map((exam) => {
+                                    const val = s.rawExams[exam];
+                                    const hasVal = val !== undefined && val !== null && val !== "";
+                                    const isPassed = hasVal && Number(val) >= 70;
+                                    return (
+                                      <span
+                                        key={exam}
+                                        className={`px-2 py-0.5 rounded-md font-mono border ${
+                                          hasVal
+                                            ? isPassed
+                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold"
+                                              : "bg-rose-50 text-rose-700 border-rose-200 font-bold"
+                                            : "bg-slate-50 text-slate-400 border-slate-200"
+                                        }`}
+                                      >
+                                        {exam}: {hasVal ? val : "—"}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          6B. VIEW MODE 2: All-Departments Full Comparison Matrix
+         ───────────────────────────────────────────────────────────── */}
+      {viewMode === "matrix" && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden font-arabic">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-700">
+              {isRtl 
+                ? "مصفوفة مقارنة أداء الطلاب عبر جميع الخدمات المسجلة في النظام" 
+                : "Cross-Department Comparison Matrix"}
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {isRtl ? "توضح درجات الطالب في كل خدمة خدم بها جنباً إلى جنب" : "Side-by-side grades for every service rotated"}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-600">
+                  <th className="py-3 px-3 text-center w-8">#</th>
+                  <th className="py-3 px-4 min-w-[180px] sticky right-0 bg-slate-50 shadow-sm z-10">
+                    {isRtl ? "اسم الطالب" : "Student Name"}
+                  </th>
+                  
+                  {/* Dynamic Columns for EVERY department in the system */}
+                  {(allEvaluatedDepts || []).map((dept) => (
+                    <th key={dept} className="py-3 px-3 min-w-[120px] text-center border-r border-slate-200/50">
+                      <span className="block truncate max-w-[120px]" title={dept}>{dept}</span>
+                    </th>
+                  ))}
+
+                  <th className="py-3 px-3 text-center min-w-[80px] bg-indigo-50/50">
+                    {isRtl ? "الامتحانات" : "Exams"}
+                  </th>
+                  <th className="py-3 px-3 text-center min-w-[80px] bg-slate-100/50">
+                    {isRtl ? "الحضور" : "Att."}
+                  </th>
+                  <th className="py-3 px-3 text-center min-w-[90px] bg-purple-50/50">
+                    {isRtl ? "المجموع الموزون" : "Total"}
+                  </th>
+                  <th className="py-3 px-3 text-center min-w-[110px]">
+                    {isRtl ? "الحالة" : "Status"}
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={6 + (allEvaluatedDepts || []).length} className="py-12 text-center text-slate-400">
+                      {isRtl ? "لا توجد بيانات مطابقة للفلترة." : "No matching records."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((s, idx) => (
+                    <tr key={s.name} className="hover:bg-indigo-50/20 transition-colors">
+                      <td className="py-3 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                      
+                      {/* Name sticky */}
+                      <td className="py-3 px-4 font-bold text-slate-800 sticky right-0 bg-white shadow-sm z-10">
+                        <div className="flex items-center gap-2">
                           <InternImage
                             photoId={s.photoId}
                             name={s.name}
-                            className="w-10 h-10 rounded-full border border-slate-200 object-cover flex-shrink-0"
+                            className="w-7 h-7 rounded-full border border-slate-200 object-cover flex-shrink-0"
                           />
-                          <div>
-                            <span className="font-bold text-slate-800 block text-sm group-hover:text-indigo-600 transition-colors">
-                              {s.name}
-                            </span>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium">{s.mainDept}</span>
-                              {s.secondaryDept && (
-                                <>
-                                  <span>•</span>
-                                  <span>{s.secondaryDept}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
+                          <span className="truncate max-w-[140px]">{s.name}</span>
                         </div>
                       </td>
 
-                      {/* Academic / Exams */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-bold text-slate-800 text-xs">
-                              {s.academicScorePct}%
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {s.passedExamsCount} / {s.totalExamsCount} امتحان
-                            </span>
-                          </div>
-                          <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${s.academicScorePct >= 70 ? "bg-indigo-600" : "bg-amber-500"}`}
-                              style={{ width: `${s.examCompletionRate}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
+                      {/* Score in EVERY evaluated department */}
+                      {(allEvaluatedDepts || []).map((dept) => {
+                        const dData = s.departmentsMap && s.departmentsMap[dept];
+                        if (!dData) {
+                          return (
+                            <td key={dept} className="py-3 px-3 text-center text-slate-300 border-r border-slate-100 font-mono">
+                              —
+                            </td>
+                          );
+                        }
 
-                      {/* Practical Service (Raw + Normalized) */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-slate-800 text-xs">
-                              {s.practicalScorePct}%
-                            </span>
-                            {normalizePractical && (
-                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-mono" title="الدرجة بعد معايرة شدة المشرف">
-                                عادل
+                        return (
+                          <td key={dept} className="py-3 px-3 text-center border-r border-slate-100 bg-indigo-50/5">
+                            <div className="space-y-0.5">
+                              <span className="font-mono font-bold text-indigo-700 block">
+                                {dData.rawScore}★
                               </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <span>الخام: {s.rawPracticalScore} / 5</span>
-                            <span>({s.evalCount} تقييم)</span>
-                            {s.isLowSample && (
-                              <span className="text-amber-500 font-bold" title="تقييم واحد فقط مسجل!">⚠️</span>
-                            )}
-                          </div>
-                        </div>
+                              <span className="text-[9px] text-slate-400 block font-mono">
+                                ({dData.totalAttendance} يوم)
+                              </span>
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      {/* Exams */}
+                      <td className="py-3 px-3 text-center bg-indigo-50/30 font-mono font-bold text-indigo-900">
+                        {s.academicScorePct}%
                       </td>
 
                       {/* Attendance */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-0.5">
-                          <span className="font-mono font-bold text-slate-800 text-xs">
-                            {s.attendancePct}%
-                          </span>
-                          <span className="text-[10px] text-slate-400 block">
-                            {s.totalAttendance} يوم حضور
-                          </span>
-                        </div>
+                      <td className="py-3 px-3 text-center bg-slate-50 font-mono text-slate-700">
+                        {s.attendancePct}%
                       </td>
 
                       {/* Composite Total */}
-                      <td className="py-4 px-4 text-center">
-                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-xl font-mono font-black text-sm border shadow-sm ${
-                          s.compositeTotalScore >= 75
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : s.compositeTotalScore >= 60
-                            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                            : "bg-rose-50 text-rose-700 border-rose-200"
-                        }`}>
-                          {s.compositeTotalScore}%
-                        </span>
+                      <td className="py-3 px-3 text-center bg-purple-50/30 font-mono font-black text-purple-700">
+                        {s.compositeTotalScore}%
                       </td>
 
-                      {/* Readiness Classification Badge */}
-                      <td className="py-4 px-4 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                      {/* Status */}
+                      <td className="py-3 px-3 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                           s.readinessTier === "ready"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : s.readinessTier === "incomplete_exams"
                             ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : s.readinessTier === "needs_practical"
-                            ? "bg-orange-50 text-orange-700 border-orange-200"
                             : "bg-rose-50 text-rose-700 border-rose-200"
                         }`}>
-                          {s.readinessTier === "ready" && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                          {s.readinessTier === "incomplete_exams" && <AlertTriangle className="w-3 h-3 text-amber-600" />}
-                          <span>{s.readinessLabel}</span>
+                          {s.readinessLabel}
                         </span>
                       </td>
-
-                      {/* Action: Open Profile */}
-                      <td className="py-4 px-4 text-center print:hidden">
-                        <button
-                          onClick={() => onSelectIntern && onSelectIntern(s.name)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
-                          title={isRtl ? "عرض ملف وسجل الطالب" : "View Dossier"}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                      </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );
 }
-
