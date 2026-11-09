@@ -1,5 +1,5 @@
 import React from "react";
-import { ClipboardList, LayoutDashboard, Globe, Users } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Globe, Users, Scale } from "lucide-react";
 import { translations } from "../translations";
 
 export default function Layout({ 
@@ -17,6 +17,7 @@ export default function Layout({
   const tabs = [
     ...(!isReadOnlyAdmin ? [{ id: "wizard", name: t.wizardTab, icon: ClipboardList }] : []),
     { id: "dashboard", name: t.dashboardTab, icon: LayoutDashboard },
+    { id: "reports", name: t.reportsTab || (lang === "ar" ? "التقرير الشامل العادل" : "General Report"), icon: Scale },
     ...(!isReadOnlyAdmin ? [{ id: "interns", name: lang === "ar" ? "بيانات الطلاب" : "Manage Interns", icon: Users }] : [])
   ];
 

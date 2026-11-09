@@ -7,6 +7,7 @@ import FilterBar from "./components/Dashboard/FilterBar";
 import Leaderboard from "./components/Dashboard/Leaderboard";
 import ProfileModal from "./components/Dashboard/ProfileModal";
 import ManageInterns from "./components/Dashboard/ManageInterns";
+import GeneralReport from "./components/Dashboard/GeneralReport";
 
 import { fetchData, submitEvaluations, saveRotationsApi, saveDepartmentsApi, saveLocalDepartments, saveExamsListApi } from "./api";
 import { isFirebaseConfigured } from "./firebase";
@@ -493,7 +494,7 @@ export default function App() {
       activeTab={activeTab}
       setActiveTab={(tab) => {
         setActiveTab(tab);
-        if (tab === "dashboard") {
+        if (tab === "dashboard" || tab === "reports") {
           loadDatabase();
         }
       }}
@@ -688,6 +689,32 @@ export default function App() {
             />
           )}
 
+        </div>
+      )}
+
+      {!loading && activeTab === "reports" && (
+        <div className="space-y-6">
+          <GeneralReport
+            rotations={rotations}
+            evaluations={evaluations}
+            examsList={examsList}
+            onSelectIntern={setSelectedProfileIntern}
+            lang={lang}
+          />
+
+          {/* Individual Intern Detail Profile Modal */}
+          {selectedProfileIntern && (
+            <ProfileModal
+              internName={selectedProfileIntern}
+              evaluations={evaluations}
+              allRotations={rotations}
+              onClose={() => setSelectedProfileIntern(null)}
+              onDeleteEvaluation={isReadOnlyAdmin ? null : handleDeleteEvaluation}
+              onUpdateIntern={isReadOnlyAdmin ? null : handleUpdateIntern}
+              examsList={examsList}
+              lang={lang}
+            />
+          )}
         </div>
       )}
 
